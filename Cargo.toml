@@ -1,0 +1,10 @@
+[package]
+name = "tullamore"
+version = "0.0.1"
+authors = ["Friends with Skelefits"]
+edition = "2021"
+
+[dependencies]
+x11rb = "0.13.1"
+lazy_static = "1.4"
+png = "0.17.16"
