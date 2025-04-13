@@ -9,12 +9,16 @@ use x11rb::connection::{Connection};
 use x11rb::protocol::xproto::*;
 use x11rb::protocol::Event;
 use x11rb::errors::ConnectionError;
+use x11rb::wrapper::ConnectionExt as _;
+use x11rb::COPY_DEPTH_FROM_PARENT;
+
 
 const HIGHBACKGROUND_COLOUR: usize = 0;
 const LOWBACKGROUND_COLOUR: usize = 1;
 const HIGHLIGHT_COLOUR: usize = 2;
 const LOWLIGHT_COLOUR: usize = 3;
 const WALLPAPER_COLOUR: usize = 4;
+const TITLEBAR_COLOUR: usize = 5;
 
 //struct Element {
 //	command: Vec<(u8, u8, u8)>, //index, command, colour
@@ -28,6 +32,7 @@ lazy_static! {
         0xFFFFFF, //HIGHLIGHT_COLOUR
         0x000000, //LOWLIGHT_COLOUR
         0x008080, //WALLPAPER_COLOUR
+		0x0000A8, //TITLEBAR_COLOUR
     ]);
 	
     //let mut depressedborder = Element {
@@ -60,32 +65,52 @@ fn loadcolours<const N: usize>(file_path: &str, default: [u32; N]) -> Vec<Option
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
-    let handle = thread::spawn(|| { //async this maybe, or remove
+    //let handle = thread::spawn(|| { //async this maybe, or remove
         if let Err(e) = panel() {
             eprintln!("Error in panel: {}", e);
         }
-    });
-    handle.join().unwrap();
+    //});
+    //handle.join().unwrap();
 
     Ok(())
 }
 
 fn panel() -> Result<(), Box<dyn Error>> {
-	let width = 640 as i16;
-	let height = 480 as i16;
+	//let width = 640 as i16;
+	//let height = 480 as i16;
+	
+
+	
+	
 	
     let (xconnection, screenid) = x11rb::connect(Some(":0"))?; // Specify display explicitly
     let screen = &xconnection.setup().roots[screenid];
-    let window = xconnection.generate_id()?; 
+	
+	let width = screen.width_in_pixels as i16;
+	let height = screen.height_in_pixels as i16;
+	
+    //let window = xconnection.generate_id()?; 
+	let window = screen.root;
     xconnection.create_window(0, window, screen.root, 100, 100, width as u16, height as u16, 0, WindowClass::INPUT_OUTPUT, screen.root_visual, &CreateWindowAux::default(),)?;
 	
-	xconnection.change_window_attributes(window, &ChangeWindowAttributesAux::default().event_mask(EventMask::BUTTON_PRESS).background_pixel(COLOURS[WALLPAPER_COLOUR]))?;
+	xconnection.change_window_attributes(
+		window,
+		&ChangeWindowAttributesAux::default()
+			.event_mask(
+				EventMask::BUTTON_PRESS 
+				| EventMask::SUBSTRUCTURE_REDIRECT 
+				| EventMask::SUBSTRUCTURE_NOTIFY
+			)
+			.background_pixel(COLOURS[WALLPAPER_COLOUR]),
+	)?;
 
     //Graphic contexts...
     let gc_highbackground = xconnection.generate_id()?;
 	let gc_lowbackground = xconnection.generate_id()?;
     let gc_highlight = xconnection.generate_id()?;
 	let gc_lowlight = xconnection.generate_id()?;	
+	let gc_titlebar = xconnection.generate_id()?;	
+
 
     //Show window.
     xconnection.map_window(window)?;
@@ -94,6 +119,7 @@ fn panel() -> Result<(), Box<dyn Error>> {
 	xconnection.create_gc(gc_highbackground, window, &CreateGCAux::default().foreground(COLOURS[HIGHBACKGROUND_COLOUR]))?;
 	xconnection.create_gc(gc_lowbackground, window, &CreateGCAux::default().foreground(COLOURS[LOWBACKGROUND_COLOUR]))?;
 	xconnection.create_gc(gc_highlight, window, &CreateGCAux::default().foreground(COLOURS[HIGHLIGHT_COLOUR]))?;
+	xconnection.create_gc(gc_titlebar, window, &CreateGCAux::default().foreground(COLOURS[TITLEBAR_COLOUR]))?;
 
     xconnection.poly_fill_rectangle(window, gc_highbackground, &[Rectangle { x: 0, y: height - 28, width: width as u16, height: 28 }])?; //Draw panel background.
     xconnection.poly_line(CoordMode::PREVIOUS, window, gc_highlight, &[Point { x: 0, y: height - 27 }, Point { x: width as i16, y: 0 }])?; //Draw panel highlight.
@@ -119,6 +145,29 @@ fn panel() -> Result<(), Box<dyn Error>> {
 
     xconnection.flush()?;
 
+
+    let test1 = xconnection.generate_id()?;
+    xconnection.create_window(COPY_DEPTH_FROM_PARENT, test1, screen.root, 100, 100, 300, 200, 0, WindowClass::INPUT_OUTPUT, 0, &CreateWindowAux::new().background_pixel(screen.white_pixel).event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS),)?;
+    xconnection.change_property8(PropMode::REPLACE, test1, AtomEnum::WM_NAME, AtomEnum::STRING, b"First Window")?;
+    xconnection.map_window(test1)?;
+	//second window test
+    let test2 = xconnection.generate_id()?;
+    xconnection.create_window(COPY_DEPTH_FROM_PARENT, test2, screen.root, 100, 100, 300, 200, 0, WindowClass::INPUT_OUTPUT, 0, &CreateWindowAux::new().background_pixel(screen.white_pixel).event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS),)?;
+    xconnection.change_property8(PropMode::REPLACE, test2, AtomEnum::WM_NAME, AtomEnum::STRING, b"Second Window")?;
+    xconnection.map_window(test2)?;
+
+
+
+    xconnection.flush()?;
+
+
+
+
+
+
+
+    let border = 4 as u16;
+    let titlebar = 18 as u16;
     loop {
 		
 
@@ -133,6 +182,87 @@ fn panel() -> Result<(), Box<dyn Error>> {
 		
         let event = xconnection.wait_for_event()?;
             match event {
+				
+				
+				//stuff for wm
+				Event::MapRequest(target) => {
+					println!("MapRequest Target: {:?}", target.window);
+					//Add a frame and a title bar.
+					if let Ok(geom) = xconnection.get_geometry(target.window)?.reply() {
+
+
+						//Calculate frame's dimensions.
+						let fwidth = geom.width + border + border;
+						let fheight = geom.height + titlebar + border + border;
+
+						//Calculate frame's origin.
+						let fx = (geom.x - border as i16).max(0).min(width - fwidth as i16);
+						let fy = (geom.y - (titlebar - border) as i16).max(0).min(height - fheight as i16);
+
+						//Create frame and put the target into into it.
+						let frame = xconnection.generate_id()?;
+						xconnection.create_window(
+							COPY_DEPTH_FROM_PARENT,
+							frame,
+							screen.root,
+							fx,
+							fy,
+							fwidth as u16,
+							fheight as u16,
+							0,
+							WindowClass::INPUT_OUTPUT,
+							0,
+							&CreateWindowAux::new()
+								.background_pixel(screen.black_pixel)
+								.event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS),
+						)?;
+						//Set the target's frame to 0, in case it has one for some reason.
+						xconnection.configure_window(target.window, &ConfigureWindowAux::new().border_width(0))?;
+						
+						xconnection.reparent_window(target.window, frame, border as i16, (border + titlebar) as i16)?;
+						xconnection.map_window(frame)?;
+						xconnection.map_window(target.window)?;
+
+						windowborder(&xconnection, frame, fwidth as i16, fheight as i16, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+
+						//Create the titlebar!
+						drawtitlebar(&xconnection, frame, geom.width as i16, titlebar as i16, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar)?;
+						xconnection.flush()?;
+					}
+				}
+
+
+
+				
+				
+				
+				
+				Event::ConfigureRequest(target) => {
+					let aux = ConfigureWindowAux::from_configure_request(&target);
+					xconnection.configure_window(target.window, &aux)?;
+					xconnection.flush()?;
+				}
+				Event::DestroyNotify(destroy) => {
+
+				}
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
+				
 				//We need a lot more comments here!
                 Event::ButtonPress(button_event) => {
 					if button_event.event_y > height - 20 && button_event.event_y < height - 5 {
@@ -160,6 +290,31 @@ fn panel() -> Result<(), Box<dyn Error>> {
     println!("wat?");
 }
 
+fn windowborder<C: Connection>(xconnection: &C, window: u32, width: i16, height: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
+	//Border background!
+	xconnection.poly_fill_rectangle(window, gc_highbackground, &[Rectangle {x: 0, y: 0, width: width as u16, height: height as u16,}])?;
+	//Border highlight!
+	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_highlight, &[
+		Point { x: width - 3, y: 1 },
+		Point { x: 4 - width, y: 0 },
+		Point { x: 0, y: height - 4 },
+	])?;
+	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_lowbackground, &[
+		Point { x: 1, y: height - 2 },
+		Point { x: width - 3, y: 0 },
+		Point { x: 0, y: 3 - height },
+	])?;
+	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_lowlight, &[
+		Point { x: width - 1, y: 0 },
+		Point { x: 0, y: height - 1 },
+		Point { x: 1 - width, y: 0 },
+	])?;
+    Ok(())
+}
+
+
+
+
 fn updateclock<C: Connection>(xconnection: &C, window: u32, gc: u32, mut phour: u8, pminute: u8, cminute: u8, width: i16, height: i16) -> Result<(u8, u8), Box<dyn Error>> {
 	println!("UpdateClock Called!");
 	if cminute != pminute {
@@ -186,6 +341,43 @@ fn updateclock<C: Connection>(xconnection: &C, window: u32, gc: u32, mut phour: 
 		println!("tminute {}", tminute);
 	}
     Ok((phour, cminute))
+}
+
+
+
+fn drawtitlebar<C: Connection>(xconnection: &C, window: u32, width: i16, height: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_titlebar: u32) -> Result<(), Box<dyn Error>> {
+
+	
+	xconnection.poly_fill_rectangle(window, gc_titlebar, &[Rectangle {x: 4, y: 4, width: width as u16, height: height as u16,}])?;
+	
+	drawbumpyframe(&xconnection, window, width - 14, 6, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+	drawbumpyframe(&xconnection, window, width - 30, 6, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+	drawbumpyframe(&xconnection, window, width - 46, 6, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+	
+    Ok(())
+}
+
+				
+
+fn drawbumpyframe<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
+	//Frame that dumps out.
+	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_lowlight, &[
+		Point { x: startx, y: starty + frameheight },
+		Point { x: framewidth, y: 0 },
+		Point { x: 0, y: -frameheight },
+	])?;
+	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_highlight, &[
+		Point { x: startx, y: starty + frameheight - 1 },
+		Point { x: 0, y: 1 - frameheight },
+		Point { x: framewidth - 1, y: 0 },
+	])?;
+	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_lowbackground, &[
+		Point { x: startx + 1, y: starty + frameheight - 1 },
+		Point { x: framewidth - 2, y: 0 },
+		Point { x: 0, y: 2-frameheight },
+	])?;
+	xconnection.poly_fill_rectangle(window, gc_highbackground, &[Rectangle {x: startx + 1, y: starty + 1, width: (framewidth as u16) - 2, height: (frameheight as u16) - 2,}])?;
+    Ok(())
 }
 
 fn drawdepressedframe<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
