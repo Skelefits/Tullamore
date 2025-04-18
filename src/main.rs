@@ -66,7 +66,7 @@ fn loadcolours<const N: usize>(file_path: &str, default: [u32; N]) -> Vec<Option
 
 fn main() -> Result<(), Box<dyn Error>> {
     //let handle = thread::spawn(|| { //async this maybe, or remove
-        if let Err(e) = panel() {
+        if let Err(e) = desktop() {
             eprintln!("Error in panel: {}", e);
         }
     //});
@@ -75,7 +75,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn panel() -> Result<(), Box<dyn Error>> {
+fn desktop() -> Result<(), Box<dyn Error>> {
 	//let width = 640 as i16;
 	//let height = 480 as i16;
 	
@@ -83,7 +83,7 @@ fn panel() -> Result<(), Box<dyn Error>> {
 	
 	
 	
-    let (xconnection, screenid) = x11rb::connect(Some(":0"))?; // Specify display explicitly
+    let (xconnection, screenid) = x11rb::connect(Some(":0"))?;
     let screen = &xconnection.setup().roots[screenid];
 	
 	let width = screen.width_in_pixels as i16;
@@ -91,18 +91,15 @@ fn panel() -> Result<(), Box<dyn Error>> {
 	
     //let window = xconnection.generate_id()?; 
 	let window = screen.root;
-    xconnection.create_window(0, window, screen.root, 100, 100, width as u16, height as u16, 0, WindowClass::INPUT_OUTPUT, screen.root_visual, &CreateWindowAux::default(),)?;
+    xconnection.create_window(0, window, screen.root, 0, 0, width as u16, height as u16, 0, WindowClass::INPUT_OUTPUT, screen.root_visual, &CreateWindowAux::default().background_pixel(COLOURS[WALLPAPER_COLOUR]),)?;
+	let panel = xconnection.generate_id()?;
 	
-	xconnection.change_window_attributes(
-		window,
-		&ChangeWindowAttributesAux::default()
-			.event_mask(
-				EventMask::BUTTON_PRESS 
-				| EventMask::SUBSTRUCTURE_REDIRECT 
-				| EventMask::SUBSTRUCTURE_NOTIFY
-			)
-			.background_pixel(COLOURS[WALLPAPER_COLOUR]),
-	)?;
+	let panelheight = 28;
+	
+	
+	xconnection.create_window(0, panel, window, 0, height - panelheight as i16, width as u16, panelheight, 0, WindowClass::INPUT_OUTPUT, screen.root_visual, &CreateWindowAux::default(),)?;
+	
+	xconnection.change_window_attributes(window, &ChangeWindowAttributesAux::default().event_mask(EventMask::BUTTON_PRESS | EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY).background_pixel(COLOURS[WALLPAPER_COLOUR]).override_redirect(1),)?;
 
     //Graphic contexts...
     let gc_highbackground = xconnection.generate_id()?;
@@ -110,19 +107,22 @@ fn panel() -> Result<(), Box<dyn Error>> {
     let gc_highlight = xconnection.generate_id()?;
 	let gc_lowlight = xconnection.generate_id()?;	
 	let gc_titlebar = xconnection.generate_id()?;	
-
+	let gc_titlebartext = xconnection.generate_id()?;
 
     //Show window.
-    xconnection.map_window(window)?;
+    xconnection.map_window(panel)?;
+	
+	
 	
 	xconnection.create_gc(gc_lowlight, window, &CreateGCAux::default().foreground(COLOURS[LOWLIGHT_COLOUR]).background(COLOURS[HIGHBACKGROUND_COLOUR]))?;
 	xconnection.create_gc(gc_highbackground, window, &CreateGCAux::default().foreground(COLOURS[HIGHBACKGROUND_COLOUR]))?;
 	xconnection.create_gc(gc_lowbackground, window, &CreateGCAux::default().foreground(COLOURS[LOWBACKGROUND_COLOUR]))?;
 	xconnection.create_gc(gc_highlight, window, &CreateGCAux::default().foreground(COLOURS[HIGHLIGHT_COLOUR]))?;
-	xconnection.create_gc(gc_titlebar, window, &CreateGCAux::default().foreground(COLOURS[TITLEBAR_COLOUR]))?;
+	xconnection.create_gc(gc_titlebar, window, &CreateGCAux::default().foreground(COLOURS[TITLEBAR_COLOUR]).background(COLOURS[HIGHBACKGROUND_COLOUR]))?;
+	xconnection.create_gc(gc_titlebartext, window, &CreateGCAux::default().foreground(COLOURS[HIGHLIGHT_COLOUR]).background(COLOURS[TITLEBAR_COLOUR]))?;
 
-    xconnection.poly_fill_rectangle(window, gc_highbackground, &[Rectangle { x: 0, y: height - 28, width: width as u16, height: 28 }])?; //Draw panel background.
-    xconnection.poly_line(CoordMode::PREVIOUS, window, gc_highlight, &[Point { x: 0, y: height - 27 }, Point { x: width as i16, y: 0 }])?; //Draw panel highlight.
+    xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: 0, y: 0, width: width as u16, height: panelheight }])?; //Draw panel background.
+    xconnection.poly_line(CoordMode::PREVIOUS, panel, gc_highlight, &[Point { x: 0, y: 1 }, Point { x: width as i16, y: 0 }])?; //Draw panel highlight.
 
 	//Draw notification box.
 	
@@ -130,55 +130,59 @@ fn panel() -> Result<(), Box<dyn Error>> {
 	let icons = 3;
 	let notification = (icons*20) + 60;
 	
-	drawdepressedframe(&xconnection, window, width - 3, height - 24, notification, 21, gc_highlight, gc_lowbackground)?;
+	drawdepressedframe(&xconnection, panel, width - 3, 4, notification, 21, gc_highlight, gc_lowbackground)?;
 
-	let clockheight = height - 8;
-	let (mut epoch, mut pminute, mut phour) = drawclock(&xconnection, window, gc_lowlight, width, clockheight)?;
+	let clockheight = 20;
+	let (mut epoch, mut pminute, mut phour) = drawclock(&xconnection, panel, gc_lowlight, width, clockheight)?;
 
 
 	
 	//Load notification graphic. 
-    drawpng(&xconnection, window, "audio-volume-muted.png", width - notification, height - 21, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-	drawpng(&xconnection, window, "network-offline.png", width - notification + 20, height - 21, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-	drawpng(&xconnection, window, "weather-snow.png", width - notification + 40, height - 21, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+    drawpng(&xconnection, panel, "audio-volume-muted.png", width - notification, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+	drawpng(&xconnection, panel, "network-offline.png", width - notification + 20, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+	drawpng(&xconnection, panel, "weather-snow.png", width - notification + 40, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
 
 
-    xconnection.flush()?;
-
-
-    let test1 = xconnection.generate_id()?;
-    xconnection.create_window(COPY_DEPTH_FROM_PARENT, test1, screen.root, 100, 100, 300, 200, 0, WindowClass::INPUT_OUTPUT, 0, &CreateWindowAux::new().background_pixel(screen.white_pixel).event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS),)?;
-    xconnection.change_property8(PropMode::REPLACE, test1, AtomEnum::WM_NAME, AtomEnum::STRING, b"First Window")?;
-    xconnection.map_window(test1)?;
-	//second window test
-    let test2 = xconnection.generate_id()?;
-    xconnection.create_window(COPY_DEPTH_FROM_PARENT, test2, screen.root, 100, 100, 300, 200, 0, WindowClass::INPUT_OUTPUT, 0, &CreateWindowAux::new().background_pixel(screen.white_pixel).event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS),)?;
-    xconnection.change_property8(PropMode::REPLACE, test2, AtomEnum::WM_NAME, AtomEnum::STRING, b"Second Window")?;
-    xconnection.map_window(test2)?;
-
-
+	//Put panel on top.
+	xconnection.configure_window(panel, &ConfigureWindowAux::default().stack_mode(StackMode::ABOVE))?;
 
     xconnection.flush()?;
-
-
-
 
 
 
 
     let border = 4 as u16;
     let titlebar = 18 as u16;
+
+
+    let test1 = xconnection.generate_id()?;
+    xconnection.create_window(COPY_DEPTH_FROM_PARENT, test1, screen.root, 100, 100, 300, 200, 0, WindowClass::INPUT_OUTPUT, 0, &CreateWindowAux::new().background_pixel(screen.white_pixel).event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS),)?;
+    xconnection.change_property8(PropMode::REPLACE, test1, AtomEnum::WM_NAME, AtomEnum::STRING, b"First Window")?;
+	//second window test
+    let test2 = xconnection.generate_id()?;
+    xconnection.create_window(COPY_DEPTH_FROM_PARENT, test2, screen.root, 500, 500, 300, 200, 0, WindowClass::INPUT_OUTPUT, 0, &CreateWindowAux::new().background_pixel(screen.white_pixel).event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS),)?;
+    xconnection.change_property8(PropMode::REPLACE, test2, AtomEnum::WM_NAME, AtomEnum::STRING, b"Second Window")?;
+
+
+	createborder(&xconnection, &screen, test1, width, height, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,)?;
+	createborder(&xconnection, &screen, test2, width, height, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,)?;
+
+    xconnection.flush()?;
+
+
+
+
+
+	let mut moving: Option<u32> = None;
+	let mut drag: Option<(i16, i16)> = None;
+	let mut origin: Option<(i16, i16)> = None;
+
+
     loop {
 		
-
-		
-		//let handle = thread::spawn(|| { //async this probably
-			//Maybe put the buttonpress into its own thread instead?
-			let epoch = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
-			let cminute = ((epoch / 60) % 60) as u8;
-			updateclock(&xconnection, window, gc_lowlight, phour, pminute, cminute, width, clockheight);
-
-		//});
+		let epoch = SystemTime::now().duration_since(SystemTime::UNIX_EPOCH).unwrap().as_secs();
+		let cminute = ((epoch / 60) % 60) as u8;
+		updateclock(&xconnection, panel, gc_lowlight, phour, pminute, cminute, width, clockheight);
 		
         let event = xconnection.wait_for_event()?;
             match event {
@@ -187,48 +191,8 @@ fn panel() -> Result<(), Box<dyn Error>> {
 				//stuff for wm
 				Event::MapRequest(target) => {
 					println!("MapRequest Target: {:?}", target.window);
-					//Add a frame and a title bar.
-					if let Ok(geom) = xconnection.get_geometry(target.window)?.reply() {
-
-
-						//Calculate frame's dimensions.
-						let fwidth = geom.width + border + border;
-						let fheight = geom.height + titlebar + border + border;
-
-						//Calculate frame's origin.
-						let fx = (geom.x - border as i16).max(0).min(width - fwidth as i16);
-						let fy = (geom.y - (titlebar - border) as i16).max(0).min(height - fheight as i16);
-
-						//Create frame and put the target into into it.
-						let frame = xconnection.generate_id()?;
-						xconnection.create_window(
-							COPY_DEPTH_FROM_PARENT,
-							frame,
-							screen.root,
-							fx,
-							fy,
-							fwidth as u16,
-							fheight as u16,
-							0,
-							WindowClass::INPUT_OUTPUT,
-							0,
-							&CreateWindowAux::new()
-								.background_pixel(screen.black_pixel)
-								.event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS),
-						)?;
-						//Set the target's frame to 0, in case it has one for some reason.
-						xconnection.configure_window(target.window, &ConfigureWindowAux::new().border_width(0))?;
-						
-						xconnection.reparent_window(target.window, frame, border as i16, (border + titlebar) as i16)?;
-						xconnection.map_window(frame)?;
-						xconnection.map_window(target.window)?;
-
-						windowborder(&xconnection, frame, fwidth as i16, fheight as i16, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-
-						//Create the titlebar!
-						drawtitlebar(&xconnection, frame, geom.width as i16, titlebar as i16, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar)?;
-						xconnection.flush()?;
-					}
+					//Add frame and title.
+					createborder(&xconnection, &screen, target.window, width, height, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar,gc_titlebartext,)?;
 				}
 
 
@@ -245,49 +209,168 @@ fn panel() -> Result<(), Box<dyn Error>> {
 				Event::DestroyNotify(destroy) => {
 
 				}
+				//For moving windows around!
+				Event::MotionNotify(motion) => {
+					if let (Some(win), Some((start_x, start_y)), Some((win_x, win_y))) =
+						(moving, drag, origin)
+					{
+						let dx = motion.root_x - start_x;
+						let dy = motion.root_y - start_y;
+						let new_x = win_x + dx;
+						let new_y = win_y + dy;
+
+						xconnection.configure_window(
+							win,
+							&ConfigureWindowAux::new().x(new_x as i32).y(new_y as i32),
+						)?;
+					}
+				}
 				
 				
 				
 				
 				
 				
-				
-				
-				
-				
-				
-				
-				
-				
-				
-				
-				
+				//For releasing the window! Redraw the frame!
+				Event::ButtonRelease(_) => {
+					if let Ok(root_tree) = xconnection.query_tree(screen.root)?.reply() {
+						for &target in &root_tree.children {
+							//Skip the panel window
+							if target != panel {
+								if let Ok(tree) = xconnection.query_tree(target)?.reply() {
+									//If this window has children, it is likely a frame.
+									if !tree.children.is_empty() {
+										if let Ok(geom) = xconnection.get_geometry(target)?.reply() {
+											let width = geom.width as i16;
+											let height = geom.height as i16;
+											//Redraw frame.
+											updateborder(&xconnection, target, tree.children.last().copied().unwrap_or(target), width, height, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+										}
+									}
+								}
+							}
+						}
+					}
+					xconnection.flush()?;
+					
+					moving = None;
+					drag = None;
+					origin = None;
+					
+				}
 				
 				//We need a lot more comments here!
-                Event::ButtonPress(button_event) => {
-					if button_event.event_y > height - 20 && button_event.event_y < height - 5 {
-						if button_event.event_x > width - notification {
-							if button_event.event_x < width - 60 {
-								let clicked_icon = icons - 1 - (button_event.event_x - (width - notification)) / 20;
-								if clicked_icon >= 0 {
-									println!("Icon index: {}", clicked_icon + 1);
+                Event::ButtonPress(press) => {
+					
+					
+					if press.detail == 1 { //Left mouse button pressed.
+						let target = press.event;
+						if let Ok(tree) = xconnection.query_tree(target)?.reply() {
+							//Focus window. Layer it just under the panel.
+							xconnection.configure_window(target, &ConfigureWindowAux::default().sibling(panel).stack_mode(StackMode::BELOW))?;
+							let aframe = !tree.children.is_empty();
+							//This window has a child (is a frame) and is licked in the titlebar.
+							if aframe && press.event_y < titlebar as i16 {
+								//Start dragging the window.
+								moving = Some(target);
+								drag = Some((press.root_x, press.root_y));
+								
+								if let Ok(geom) = xconnection.get_geometry(target)?.reply() {
+									origin = Some((geom.x as i16, geom.y as i16));
 								}
 							} else {
-								println!("Clock clicked!");
+								//Do we have a frame?
+								if tree.parent != 0 {
+									//Focus parent (frame) if there is one.
+									xconnection.configure_window(tree.parent, &ConfigureWindowAux::default().sibling(panel).stack_mode(StackMode::BELOW))?;
+								}
+							}
+						}
+					
+					
+					
+					
+					
+					
+					
+					
+						if press.event_y > height - 20 && press.event_y < height - 5 {
+							if press.event_x > width - notification {
+								if press.event_x < width - 60 {
+									let clicked_icon = icons - 1 - (press.event_x - (width - notification)) / 20;
+									if clicked_icon >= 0 {
+										println!("Icon index: {}", clicked_icon + 1);
+									}
+								} else {
+									println!("Clock clicked!");
+								}
+							} else {
+								println!("Middle of panel clicked!");
 							}
 						} else {
-							println!("Middle of panel clicked!");
+							println!("Mouse button pressed at ({}, {}) with button: {}", press.event_x, press.event_y, press.detail);
 						}
-					} else {
-						println!("Mouse button pressed at ({}, {}) with button: {}", button_event.event_x, button_event.event_y, button_event.detail);
 					}
                 }
                 Event::Error(_) => println!("bug bug"),
-                _ => println!("Unknown event!"),
+				_ => (),
             }
 		xconnection.flush()?;
     }
     println!("wat?");
+}
+
+fn createborder(xconnection: &impl x11rb::connection::Connection, screen: &x11rb::protocol::xproto::Screen, target: u32, width: i16, height: i16, border: u16, titlebar: u16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_titlebar: u32, gc_titlebartext: u32) -> Result<(), Box<dyn std::error::Error>> {
+    if let Ok(geom) = xconnection.get_geometry(target)?.reply() {
+
+		//Calculate frame's dimensions.
+		let fwidth = geom.width + border + border;
+		let fheight = geom.height + titlebar + border + border;
+
+		//Calculate frame's origin.
+		let fx = (geom.x - border as i16).max(0).min(width - fwidth as i16);
+		let fy = (geom.y - (titlebar - border) as i16).max(0).min(height - fheight as i16);
+
+		//Create frame and put the target into into it.
+		let frame = xconnection.generate_id()?;
+		xconnection.create_window( COPY_DEPTH_FROM_PARENT, frame, screen.root, fx, fy, fwidth, fheight, 0, WindowClass::INPUT_OUTPUT, 0, &CreateWindowAux::new().background_pixel(COLOURS[HIGHBACKGROUND_COLOUR]).event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS | EventMask::POINTER_MOTION | EventMask::BUTTON_RELEASE),)?;
+		//Set the target's frame to 0, in case it has one for some reason.
+		xconnection.configure_window(target, &ConfigureWindowAux::new().border_width(0))?;
+
+		xconnection.reparent_window(target, frame, border as i16, (border + titlebar) as i16,)?;
+		xconnection.map_window(frame)?;
+		xconnection.map_window(target)?;
+
+        updateborder(xconnection, frame, target, fwidth as i16, fheight as i16, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, )?;
+
+		xconnection.flush()?;
+	}
+    Ok(())
+}
+
+fn updateborder<C: x11rb::connection::Connection>(xconnection: &C, frame: u32, target: u32, width: i16, height: i16, titlebar: u16, border: u16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_titlebar: u32, gc_titlebartext: u32) -> Result<(), Box<dyn std::error::Error>> {
+    windowborder(xconnection, frame, width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+    //if height > (titlebar + 2 * border) as i16 {
+        drawtitlebar(xconnection, frame, width - 8, titlebar as i16, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar)?;
+        drawtitletext(xconnection, frame, gc_titlebartext, target, 8, (titlebar as i16) - 1)?;
+    //}
+    Ok(())
+}
+
+fn grabwindowtitle<C: x11rb::connection::Connection>(xconnection: &C, window: u32,) -> Result<Option<String>, Box<dyn std::error::Error>> {
+    let reply = xconnection.get_property(false, window, AtomEnum::WM_NAME, AtomEnum::STRING, 0, 1024)?.reply()?;
+    if reply.value.is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(String::from_utf8_lossy(&reply.value).to_string()))
+    }
+}
+
+fn drawtitletext<C: x11rb::connection::Connection>(xconnection: &C, drawable: u32, gc: u32, window: u32, x: i16, y: i16,) -> Result<(), Box<dyn std::error::Error>> {
+    if let Some(title) = grabwindowtitle(xconnection, window)? {
+        xconnection.image_text8(drawable, gc, x, y, title.as_bytes())?;
+    }
+    Ok(())
 }
 
 fn windowborder<C: Connection>(xconnection: &C, window: u32, width: i16, height: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
@@ -316,9 +399,9 @@ fn windowborder<C: Connection>(xconnection: &C, window: u32, width: i16, height:
 
 
 fn updateclock<C: Connection>(xconnection: &C, window: u32, gc: u32, mut phour: u8, pminute: u8, cminute: u8, width: i16, height: i16) -> Result<(u8, u8), Box<dyn Error>> {
-	println!("UpdateClock Called!");
+	//println!("UpdateClock Called!");
 	if cminute != pminute {
-		println!("cminute != pminute");
+		//println!("cminute != pminute");
 		//Draw minute.
 		let mut tminute = cminute.to_string();
 		if cminute < 10 {
@@ -338,7 +421,7 @@ fn updateclock<C: Connection>(xconnection: &C, window: u32, gc: u32, mut phour: 
 			}
 			xconnection.image_text8(window, gc, width - 55, height, phour.to_string().as_bytes());
 		}
-		println!("tminute {}", tminute);
+		//println!("tminute {}", tminute);
 	}
     Ok((phour, cminute))
 }
@@ -408,7 +491,6 @@ fn drawclock<C: Connection>(xconnection: &C, window: u32, gc_lowlight: u32, widt
     let mut phour = ((epoch / 3600) % 24) as u8;
     let mut chour = phour;
     
-    // Convert to 12-hour format
     if phour > 12 {
         chour -= 12;
     }
@@ -448,7 +530,7 @@ fn drawpng<C: Connection>(xconnection: &C, window: u32, filename: &str, x: i16, 
     let mut reader = decoder.read_info()?;
 
     let mut buffer = vec![0; (height * width * 4) as usize];
-    reader.next_frame(&mut buffer)?; // Load in image data.
+    reader.next_frame(&mut buffer)?;
 
     let pixmap = xconnection.generate_id()?;
     xconnection.create_pixmap(24, pixmap, window, width, height)?;
