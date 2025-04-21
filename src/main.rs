@@ -17,6 +17,7 @@ use x11rb::{
     wrapper::ConnectionExt as _,
     COPY_DEPTH_FROM_PARENT,
 };
+use std::collections::HashMap;
 
 mod window;
 use window::redrawframes;
@@ -56,8 +57,83 @@ struct WindowState {
     width: i16,
     height: i16,
     map: u8, //0 for hidden taskbar, 1 for hidden notification bar, 2 for visible and focused, 3 for visble and not focused
-    workspace: u8,
-    group: u8,
+    order: u8,
+}
+
+pub struct WindowManager {
+    windows: HashMap<Window, WindowState>,
+    frames: HashMap<Window, Window>
+}
+
+impl WindowManager {
+    pub fn new() -> Self {
+        WindowManager {
+            windows: HashMap::new(),
+            frames: HashMap::new()
+        }
+    }
+	
+    pub fn focus<C: Connection>(&mut self, xconnection: &C, target: Window, panel: Window) -> Result<(), Box<dyn Error>> {
+        xconnection.configure_window(target, &ConfigureWindowAux::default().sibling(panel).stack_mode(StackMode::BELOW))?;
+        for state in self.windows.values_mut() {
+            if state.frame == target {
+                state.map = 2;  //Focus
+            } else if state.map == 2 {
+                state.map = 3;  //Old focused window is now just visible.
+            }
+        }
+
+        Ok(())
+    }
+
+    // Original method
+    pub fn getwindow(&self, window: &Window) -> Option<&WindowState> {
+        self.windows.get(window)
+    }
+
+    pub fn findwindow<'a>(&'a self, title: &'a str) -> impl Iterator<Item = &'a WindowState> + 'a {
+        self.windows.values().filter(move |w| w.title == title)
+    }
+
+	pub fn insertwindow(&mut self, state: WindowState) {
+		let window = state.window;
+		let frame = state.frame;
+		self.frames.insert(frame, window);
+		self.windows.insert(window, state);
+	}
+
+    pub fn getframe(&self, frame: &Window) -> Option<&WindowState> {
+        self.frames.get(frame)
+            .and_then(|window| self.windows.get(window))
+    }
+
+    pub fn removewindow(&mut self, window: &Window) {
+        if let Some(state) = self.windows.remove(window) {
+            self.frames.remove(&state.frame);
+        }
+    }
+	
+    pub fn fillblanks(&mut self) {
+        let mut max = 0;
+        let mut update = Vec::new();
+        
+        for (window, state) in self.windows.iter() {
+            if state.order > max {
+                max = state.order;
+            } else if state.order == 0 {
+                update.push(*window);
+            }
+        }
+        
+        let mut next = max + 1;
+        for window in update {
+            if let Some(state) = self.windows.get_mut(&window) {
+                state.order = next;
+                next += 1;
+            }
+        }
+    }
+	
 }
 
 const FASTDRAG: bool = true;
@@ -99,15 +175,12 @@ fn makepattern<C: Connection>(xconnection: &C, window: u32, firstcolour: u32, se
     let gc = xconnection.generate_id()?;
     let temp_gc1 = xconnection.generate_id()?;
     let temp_gc2 = xconnection.generate_id()?;
-
-    // Create 4x4 pixmap
+	
     xconnection.create_pixmap(24, pixmap, window, 2, 2)?;
 
-    // Create temporary GCs
     xconnection.create_gc(temp_gc1, pixmap, &CreateGCAux::default().foreground(firstcolour))?;
     xconnection.create_gc(temp_gc2, pixmap, &CreateGCAux::default().foreground(secondcolour))?;
 
-    // Draw checker pattern
     xconnection.poly_fill_rectangle(pixmap, temp_gc1, &[
         Rectangle { x: 0, y: 0, width: 1, height: 1 },
         Rectangle { x: 1, y: 1, width: 1, height: 1 }
@@ -117,13 +190,11 @@ fn makepattern<C: Connection>(xconnection: &C, window: u32, firstcolour: u32, se
         Rectangle { x: 0, y: 1, width: 1, height: 1 }
     ])?;
 
-    // Create tiled GC
     xconnection.create_gc(gc, window, &CreateGCAux::default()
         .tile(pixmap)
         .fill_style(FillStyle::TILED)
     )?;
 
-    // Cleanup
     xconnection.free_gc(temp_gc1)?;
     xconnection.free_gc(temp_gc2)?;
     xconnection.free_pixmap(pixmap)?;
@@ -131,12 +202,23 @@ fn makepattern<C: Connection>(xconnection: &C, window: u32, firstcolour: u32, se
     Ok(gc)
 }
 
+fn createwindow<C: Connection>(xconnection: &C, screen: &Screen, x: i16, y: i16, width: u16, height: u16, title: &[u8], screen_width: i16, screen_height: i16, border: u16, titlebar: u16, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, windowmanager: &mut WindowManager) -> Result<Window, Box<dyn Error>> {
+    let window = xconnection.generate_id()?;
+    xconnection.create_window(COPY_DEPTH_FROM_PARENT, window, screen.root, x, y, width, height, 0, WindowClass::INPUT_OUTPUT, 0, &CreateWindowAux::new().background_pixel(screen.white_pixel).event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS))?;
+    xconnection.change_property8(PropMode::REPLACE, window, AtomEnum::WM_NAME, AtomEnum::STRING, title)?;
+    xconnection.change_window_attributes(window, &ChangeWindowAttributesAux::default().override_redirect(0))?;
+	let frame = createborder(xconnection, screen, window, screen_width, screen_height, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+    xconnection.map_window(window)?;
+    let state = WindowState {window, frame, title: String::from_utf8_lossy(title).to_string(), x, y, z: 0, width: width as i16, height: height as i16, map: 2, order: 0};
+    windowmanager.insertwindow(state);
+    Ok(window)
+}
 
 fn desktop() -> Result<(), Box<dyn Error>> {
 	//let width = 640 as i16;
 	//let height = 480 as i16;
 	
-
+	let mut wm = WindowManager::new();
 	
 	
 	
@@ -182,8 +264,6 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	xconnection.create_gc(gc_titlebartext, window, &CreateGCAux::default().foreground(COLOURS[HIGHLIGHT_COLOUR]).background(COLOURS[TITLEBAR_COLOUR]))?;
 	xconnection.create_gc(gc_xor, window, &CreateGCAux::default().function(Some(GX::XOR)).foreground(0xFFFFFF).subwindow_mode(SubwindowMode::INCLUDE_INFERIORS),)?;
 
-
-	// Create checker pattern GCs
 	let gc_highcheckers = makepattern(&xconnection, window, COLOURS[HIGHLIGHT_COLOUR].unwrap(), COLOURS[HIGHBACKGROUND_COLOUR].unwrap())?;
 	let gc_lowcheckers = makepattern(&xconnection, window, COLOURS[LOWLIGHT_COLOUR].unwrap(), COLOURS[LOWBACKGROUND_COLOUR].unwrap())?;
 
@@ -229,34 +309,18 @@ fn desktop() -> Result<(), Box<dyn Error>> {
     let border = 4 as u16;
     let titlebar = 18 as u16;
 
+	//test windows
+	
+	let test1 = createwindow(&xconnection, &screen, 100, 100, 200, 100, b"test1", 1920, 1080, 2, 20, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
+	
+	let test2 = createwindow(&xconnection, &screen, 100, 100, 300, 200, b"test2", 1920, 1080, 2, 20, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
+	
+	let test3 = createwindow(&xconnection, &screen, 100, 100, 100, 100, b"test3", 1920, 1080, 2, 20, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 
-    let test1 = xconnection.generate_id()?;
-    xconnection.create_window(COPY_DEPTH_FROM_PARENT, test1, screen.root, 100, 100, 300, 200, 0, WindowClass::INPUT_OUTPUT, 0, &CreateWindowAux::new().background_pixel(screen.white_pixel).event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS),)?;
-    xconnection.change_property8(PropMode::REPLACE, test1, AtomEnum::WM_NAME, AtomEnum::STRING, b"First Window")?;
-	xconnection.change_window_attributes(test1, &ChangeWindowAttributesAux::default().override_redirect(0))?;
-	xconnection.map_window(test1)?;
-	createborder(&xconnection, &screen, test1, width, height, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,)?;
-	
-	
-	//second window test
-    let test2 = xconnection.generate_id()?;
-    xconnection.create_window(COPY_DEPTH_FROM_PARENT, test2, screen.root, 200, 200, 300, 200, 0, WindowClass::INPUT_OUTPUT, 0, &CreateWindowAux::new().background_pixel(screen.white_pixel).event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS),)?;
-    xconnection.change_property8(PropMode::REPLACE, test2, AtomEnum::WM_NAME, AtomEnum::STRING, b"Second Window")?;
-	xconnection.change_window_attributes(test2, &ChangeWindowAttributesAux::default().override_redirect(0))?;
-	xconnection.map_window(test2)?;
-	createborder(&xconnection, &screen, test2, width, height, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,)?;
-
-	
-	
-
+	wm.fillblanks();
 
 	//Draw window boxes on the panel.
-	drawpanelwindows(&xconnection, panel, 61, width - notification - 67, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
-
-
-
-
-    xconnection.flush()?;
+	drawpanelwindows(&xconnection, panel, 61, width - notification - 67, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers, &wm)?;
 
 
 
@@ -340,6 +404,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				
 				//For releasing the window! Redraw the frame!
 				Event::ButtonRelease(_) => {
+					
 					if FASTDRAG {
 						//Draw XOR Outline to overwrite old one.
 						if let Some((lx, ly, lw, lh)) = xordrawn { drawxoroutline(&xconnection, screen.root, gc_xor, lx, ly, lw, lh)?; xordrawn = None; }
@@ -348,7 +413,17 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					if let Some(target) = moving {
 						if let (Some((finalx, finaly)), Some((targetx, targety))) = (drag, origin) {
 							let pointer = xconnection.query_pointer(screen.root)?.reply()?;
-							xconnection.configure_window(target, &ConfigureWindowAux::new().x((targetx + (pointer.root_x - finalx)) as i32).y((targety + (pointer.root_y - finaly)) as i32))?;
+							let newx = targetx + (pointer.root_x - finalx);
+							let newy = targety + (pointer.root_y - finaly);
+							
+							//Update xy on X server.
+							xconnection.configure_window(target, &ConfigureWindowAux::new().x(newx as i32).y(newy as i32))?;
+							
+							//Update wm!
+							if let Some(state) = wm.windows.values_mut().find(|s| s.frame == target) {
+								state.x = newx;
+								state.y = newy;
+							}
 						}
 					}
 
@@ -357,7 +432,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					origin = None;
 
 					//Redraw window frames.
-					redrawframes(&xconnection, screen, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+					redrawframes(&xconnection, &wm, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 
 					xconnection.flush()?;
 				}
@@ -378,55 +453,31 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						}
 					
 					
-					
-					
+				
+
 						let target = press.event;
-						if let Ok(tree) = xconnection.query_tree(target)?.reply() {
-							//Focus window. Layer it just under the panel.
-							xconnection.configure_window(target, &ConfigureWindowAux::default().sibling(panel).stack_mode(StackMode::BELOW))?;
-							let aframe = !tree.children.is_empty();
-							//This window has a child (is a frame) and is licked in the titlebar.
-							if aframe && press.event_y < titlebar as i16 {
-								//Start dragging the window.
-								moving = Some(target);
+						if let Some((frame, statex, statey)) = wm.getframe(&target).map(|state| (state.frame, state.x, state.y)).or_else(|| wm.windows.values().find(|state| state.window == target).map(|state| (state.frame, state.x, state.y))) {
+							wm.focus(&xconnection, frame, panel)?;
+							
+							if target == frame && press.event_y < titlebar as i16 {
+								moving = Some(frame);
 								drag = Some((press.root_x, press.root_y));
-								
-								if let Ok(geom) = xconnection.get_geometry(target)?.reply() {
-									origin = Some((geom.x as i16, geom.y as i16));
-								}
-							} else {
-								//Do we have a frame?
-								if tree.parent != 0 {
-									//Focus parent (frame) if there is one.
-									xconnection.configure_window(tree.parent, &ConfigureWindowAux::default().sibling(panel).stack_mode(StackMode::BELOW))?;
-								}
+								origin = Some((statex, statey));
 							}
 
-							//Lets refactor this code. We'll have a simple trigger. refresh[window] = true, or something. All drawing will take place at the end of the loop.
-							if let Ok(root_tree) = xconnection.query_tree(screen.root)?.reply() {
-								for &target in &root_tree.children {
-									//Skip the panel window
-									if target != panel {
-										if let Ok(tree) = xconnection.query_tree(target)?.reply() {
-											//If this window has children, it is likely a frame.
-											if !tree.children.is_empty() {
-												if let Ok(geom) = xconnection.get_geometry(target)?.reply() {
-													let width = geom.width as i16;
-													let height = geom.height as i16;
-													//Redraw frame.
-													updateborder(&xconnection, target, tree.children.last().copied().unwrap_or(target), width, height, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
-												}
-											}
-										}
-									}
+							let windows_to_update: Vec<(Window, Window, i16, i16)> = wm.windows.values().filter(|state| state.map == 2 || state.map == 3).map(|state| {
+								let frame_width = state.width + border as i16;
+								let frame_height = state.height + border as i16 + 2 + (titlebar as i16);
+								(state.frame, state.window, frame_width, frame_height)
+							}).collect();
+
+							for (frame, client, width, height) in windows_to_update {
+								if frame != panel {
+									updateborder(&xconnection, frame, client, width, height, titlebar, border,gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground,gc_titlebar, gc_titlebartext)?;
 								}
 							}
-
-
-
 							//Draw the taskbar window buttons.
-							drawpanelwindows(&xconnection, panel, 61, width - notification - 67, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
-							//xconnection.flush()?;
+							drawpanelwindows(&xconnection, panel, 61, width - notification - 67, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers, &wm)?;
 						}
 					
 					
@@ -467,30 +518,3 @@ fn desktop() -> Result<(), Box<dyn Error>> {
     }
     println!("wat?");
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	
-
-	
-
-
-
-
-
-
