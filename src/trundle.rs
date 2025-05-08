@@ -72,6 +72,7 @@ pub fn drawtitlebar<C: Connection>(xconnection: &C, window: u32, width: i16, hei
 	drawbumpyframe(&xconnection, window, width - 14, 6, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
 	drawbumpyframe(&xconnection, window, width - 30, 6, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
 	drawbumpyframe(&xconnection, window, width - 46, 6, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+	println!("{}", width - 14);
 	
     Ok(())
 }
