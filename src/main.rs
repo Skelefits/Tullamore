@@ -48,6 +48,8 @@ use trundle::{
     TITLEBAR_COLOUR
 };
 
+
+
 struct WindowState {
     window: Window,
     frame: Window,
@@ -287,13 +289,88 @@ fn createwindow<C: Connection>(xconnection: &C, screen: &Screen, x: i16, y: i16,
     Ok(window)
 }
 
+fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128]) {
+    //Type and Actions
+	// 1 = Start Button Ready
+	// 2 = Start Button Pressed
+	//10 = Task List
+	//20 = Quick Laucher
+	//30 = Icon Link
+	//31 = Icon Link Pressed
+	//32 = Icon Link Hover
+	
+	//40 = Taskbar Button Ready
+	//41 = Taskbar Button Pressed
+	//50 = Taskbar Button Arrows
+	//60 = Notification Area
+	
+	//[Type and Action, Window (if under 255, links to another array which will define icon and link)]
+	panelitems[0] = [1]; //Start button!
+	//[X, Width]
+	panelcoordinates[0] = [2, 54];
+	panelwindows[0] = [0];
+	
+	panelitems[1] = [30]; //Test Link 1
+	panelcoordinates[1] = [60, 23];
+	panelwindows[1] = [1];
+	
+	
+	panelitems[2] = [30]; //Test Link 2
+	panelcoordinates[2] = [60+23, 0];
+	panelwindows[2] = [2];
+	
+	
+	panelitems[3] = [30]; //Test Link 3
+	panelcoordinates[3] = [60+23+23, 0];
+	panelwindows[3] = [3];
+	
+	panelitems[4] = [40]; 
+	panelcoordinates[4] = [120, 100];
+	panelwindows[4] = [999];
+	
+	panelitems[5] = [40];
+	panelcoordinates[5] = [230, 100];
+	panelwindows[5] = [999];
+	
+	
+	panelitems[6] = [41];
+	panelcoordinates[6] = [340, 100];
+	panelwindows[6] = [999];
+	
+	
+	panelitems[7] = [60]; //Notification Area
+	panelcoordinates[7] = [0, 0];
+	panelwindows[7] = [0];
+}
+
+fn definepanellinks(link: &mut [[String; 4]; 16]) {
+	link[0][0] = "".to_string(); //Program to open, nul means Tullamore is hardcoded with an action.
+	link[0][1] = "Start".to_string(); //Text
+	link[0][2] = "Click here to begin.".to_string(); //Tool Tip
+	link[0][3] = "computer.png".to_string(); //Icon
+	
+	link[1] = [String::from(""), "Web Browser".to_string(), "The Internet is for the weak!".to_string(), "audio-volume-muted.png".to_string()];
+	link[2] = [String::from(""), "Web Browser".to_string(), "The Internet is for the weak!".to_string(), "network-offline.png".to_string()];
+	link[3] = [String::from(""), "Web Browser".to_string(), "The Internet is for the weak!".to_string(), "weather-snow.png".to_string()];
+}
+
+
+
 fn desktop() -> Result<(), Box<dyn Error>> {
 	//let width = 640 as i16;
 	//let height = 480 as i16;
 	
 	let mut wm = WindowManager::new();
 	
+	let mut panelitems: [[u8; 1]; 128] = [[0; 1]; 128];
+	let mut panelcoordinates: [[i16; 2]; 128] = [[0; 2]; 128];
+	let mut panelwindows: [[u32; 1]; 128] = [[0; 1]; 128];
+	let mut panellinks: [[String; 4]; 16] = Default::default();
+	definepanelitems(&mut panelitems, &mut panelcoordinates, &mut panelwindows);
+	definepanellinks(&mut panellinks);
 	
+    //let mut panellinks: [[String; 4]; 16] = [[String; 4]; 16];
+    //definepanellinks(&mut panellinks);
 	
     let (xconnection, screenid) = x11rb::connect(Some(":0"))?;
     let screen = &xconnection.setup().roots[screenid];
@@ -343,43 +420,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 	let gc_xorcheckers = makexorpattern(&xconnection, window)?;
 	
-
-    xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: 0, y: 0, width: width as u16, height: panelheight }])?; //Draw panel background.
-    xconnection.poly_line(CoordMode::PREVIOUS, panel, gc_highlight, &[Point { x: 0, y: 1 }, Point { x: width as i16, y: 0 }])?; //Draw panel highlight.
-
-	//Draw notification box.
 	
-	//calculate the size of the notification box.
-	let icons = 3;
-	let notification = (icons*20) + 60;
-	
-	//Notification - Depression
-	drawdepressedframe(&xconnection, panel, width - 3, 4, notification, 21, gc_highlight, gc_lowbackground)?;
-
-	//Start Bump
-	drawstartbutton(&xconnection, panel, 2, 4, 54, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-
-
-
-	let clockheight = 20;
-	let (mut epoch, mut pminute, mut phour) = drawclock(&xconnection, panel, gc_lowlight, width, clockheight)?;
-
-	
-	
-	//Load notification graphic. 
-    drawpng(&xconnection, panel, "audio-volume-muted.png", width - notification, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-	drawpng(&xconnection, panel, "network-offline.png", width - notification + 20, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-	drawpng(&xconnection, panel, "weather-snow.png", width - notification + 40, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-
-
-	//Put panel on top.
-	xconnection.configure_window(panel, &ConfigureWindowAux::default().stack_mode(StackMode::ABOVE))?;
-
-    xconnection.flush()?;
-
-
-
-
     let border = 4 as u16;
     let titlebar = 18 as u16;
 
@@ -395,8 +436,100 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 	redrawframes(&xconnection, &wm, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 
+	
+	
+	
+
+	//Draw notification box.
+	
+	//calculate the size of the notification box.
+	let icons = 3;
+	let notification = (icons*20) + 60;
+	let mut notificationindex = 7 as usize;
+	
+	panelcoordinates[notificationindex][1] = notification;
+	panelcoordinates[notificationindex][0] = width - panelcoordinates[notificationindex][1] - 3;
+	
+	println!("Ho Ho {} {}", panelcoordinates[notificationindex][0], panelcoordinates[notificationindex][1]);
+
+	//Let's draw the panel.
+    xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: 0, y: 0, width: width as u16, height: panelheight }])?; //Draw panel background.
+    xconnection.poly_line(CoordMode::PREVIOUS, panel, gc_highlight, &[Point { x: 0, y: 1 }, Point { x: width as i16, y: 0 }])?; //Draw panel highlight.
+
+
+
+	//We will loop through all items in panel[?] and display them.
+	for i in 0..128 {
+		match panelitems[i][0] {
+			0 => {
+				//Invalid panel item, assume the rest are too!
+				break;
+			}
+			1 => {
+				//Start Button
+				drawstartbutton(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+			}
+			30 => {
+				//Three pixels to the left of the icon, four to the right.
+				drawpng(&xconnection, panel, &panellinks[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+				
+
+			//40 => {
+				//drawbumpyframe(xconnection, window, offset, 4, finalwidth, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+				//drawpng(xconnection, window, "computer.png", offset + 4, 7, ICON_WIDTH, ICON_HEIGHT, COLOURS[HIGHBACKGROUND_COLOUR])?;	
+			//}
+				
+			}
+			60 => {
+				//Notification Area
+				
+				//Notification - Depression
+				drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowbackground)?;
+				
+				
+				//Load notification graphic. 
+				
+				println!("Here Here {} {}", panelcoordinates[i][0], panelcoordinates[i][1]);
+				
+				
+				
+				
+				drawpng(&xconnection, panel, "audio-volume-muted.png", panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+				drawpng(&xconnection, panel, "network-offline.png", panelcoordinates[i][0] + 23, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+				drawpng(&xconnection, panel, "weather-snow.png", panelcoordinates[i][0] + 43, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+				
+			}
+			_ => {
+				println!("{} {} {} {}", panelitems[i][0], panelcoordinates[i][0], panelcoordinates[i][1], panelwindows[i][0]);
+			}
+		}
+	}
+
+
 	//Draw window boxes on the panel.
-	drawpanelwindows(&xconnection, panel, 61, width - notification - 67, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers, &wm)?;
+	//drawpanelwindows(&xconnection, panel, 61, width - notification - 67, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers, &wm)?;
+
+
+
+
+
+
+
+	let clockheight = 20;
+	let (mut epoch, mut pminute, mut phour) = drawclock(&xconnection, panel, gc_lowlight, width, clockheight)?;
+
+	
+	
+
+
+
+	//Put panel on top.
+	xconnection.configure_window(panel, &ConfigureWindowAux::default().stack_mode(StackMode::ABOVE))?;
+
+    xconnection.flush()?;
+
+
+
 
 
 

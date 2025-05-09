@@ -117,7 +117,7 @@ pub fn windowborder<C: Connection>(xconnection: &C, window: u32, width: i16, hei
 
 pub fn drawstartbutton<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
 
-	drawbumpyframe(&xconnection, window, 2, 4, 54, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+	drawbumpyframe(&xconnection, window, startx, starty, framewidth, frameheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
 	drawpng(&xconnection, window, "computer.png", 6, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
 	
 	xconnection.image_text8(window, gc_lowlight, 24, 19, "S".as_bytes());
