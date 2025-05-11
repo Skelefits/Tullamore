@@ -289,7 +289,7 @@ fn createwindow<C: Connection>(xconnection: &C, screen: &Screen, x: i16, y: i16,
     Ok(window)
 }
 
-fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128]) {
+fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], width: i16, icons: u8, trayindex: &mut u8) {
     //Type and Actions
 	// 1 = Start Button Ready
 	// 2 = Start Button Pressed
@@ -338,12 +338,21 @@ fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i1
 	panelwindows[6] = [999];
 	
 	
-	panelitems[7] = [60]; //Notification Area
-	panelcoordinates[7] = [0, 0];
-	panelwindows[7] = [0];
+	let notification = ((icons*20) + 60) as i16;
+	*trayindex = 7;
+
+	
+	
+	panelitems[*trayindex as usize] = [60]; //Notification Area
+	panelcoordinates[*trayindex as usize] = [width - notification - 3, notification];
+	panelwindows[*trayindex as usize] = [0];
 }
 
-fn definepanellinks(link: &mut [[String; 4]; 16]) {
+fn definepanelicons(link: &mut [[String; 4]; 32], icons:  &mut u8) {
+	//0-15 is for quick links in the task bar.
+	//16-31 is for icons in the tray.
+	
+	
 	link[0][0] = "".to_string(); //Program to open, nul means Tullamore is hardcoded with an action.
 	link[0][1] = "Start".to_string(); //Text
 	link[0][2] = "Click here to begin.".to_string(); //Tool Tip
@@ -352,6 +361,14 @@ fn definepanellinks(link: &mut [[String; 4]; 16]) {
 	link[1] = [String::from(""), "Web Browser".to_string(), "The Internet is for the weak!".to_string(), "audio-volume-muted.png".to_string()];
 	link[2] = [String::from(""), "Web Browser".to_string(), "The Internet is for the weak!".to_string(), "network-offline.png".to_string()];
 	link[3] = [String::from(""), "Web Browser".to_string(), "The Internet is for the weak!".to_string(), "weather-snow.png".to_string()];
+	
+	
+	link[31] = [String::from(""), "Sound".to_string(), "Sound Muted".to_string(), "audio-volume-muted.png".to_string()];
+	link[30] = [String::from(""), "Network".to_string(), "Network Offline".to_string(), "network-offline.png".to_string()];
+	link[29] = [String::from(""), "Weather".to_string(), "Snowing".to_string(), "weather-snow.png".to_string()];
+	
+
+	*icons = 3;
 }
 
 
@@ -362,21 +379,36 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	
 	let mut wm = WindowManager::new();
 	
-	let mut panelitems: [[u8; 1]; 128] = [[0; 1]; 128];
-	let mut panelcoordinates: [[i16; 2]; 128] = [[0; 2]; 128];
-	let mut panelwindows: [[u32; 1]; 128] = [[0; 1]; 128];
-	let mut panellinks: [[String; 4]; 16] = Default::default();
-	definepanelitems(&mut panelitems, &mut panelcoordinates, &mut panelwindows);
-	definepanellinks(&mut panellinks);
-	
-    //let mut panellinks: [[String; 4]; 16] = [[String; 4]; 16];
-    //definepanellinks(&mut panellinks);
-	
     let (xconnection, screenid) = x11rb::connect(Some(":0"))?;
     let screen = &xconnection.setup().roots[screenid];
 	
 	let width = screen.width_in_pixels as i16;
 	let height = screen.height_in_pixels as i16;
+	
+	
+	//calculate the size of the notification box.
+	
+
+	
+	//What links and notification tray icons do we have?
+	let mut panelicons: [[String; 4]; 32] = Default::default();
+	let mut icons = 0 as u8;
+	definepanelicons(&mut panelicons, &mut icons);
+	
+	
+	let mut panelitems: [[u8; 1]; 128] = [[0; 1]; 128];
+	let mut panelcoordinates: [[i16; 2]; 128] = [[0; 2]; 128];
+	let mut panelwindows: [[u32; 1]; 128] = [[0; 1]; 128];
+
+
+	let mut trayindex = 7 as u8;
+	definepanelitems(&mut panelitems, &mut panelcoordinates, &mut panelwindows, width, icons, &mut trayindex);
+	
+	
+    //let mut panellinks: [[String; 4]; 16] = [[String; 4]; 16];
+    //definepanellinks(&mut panellinks);
+	
+
 	
     //let window = xconnection.generate_id()?; 
 	let window = screen.root;
@@ -438,19 +470,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 	
 	
-	
 
-	//Draw notification box.
-	
-	//calculate the size of the notification box.
-	let icons = 3;
-	let notification = (icons*20) + 60;
-	let mut notificationindex = 7 as usize;
-	
-	panelcoordinates[notificationindex][1] = notification;
-	panelcoordinates[notificationindex][0] = width - panelcoordinates[notificationindex][1] - 3;
-	
-	println!("Ho Ho {} {}", panelcoordinates[notificationindex][0], panelcoordinates[notificationindex][1]);
 
 	//Let's draw the panel.
     xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: 0, y: 0, width: width as u16, height: panelheight }])?; //Draw panel background.
@@ -471,7 +491,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 			}
 			30 => {
 				//Three pixels to the left of the icon, four to the right.
-				drawpng(&xconnection, panel, &panellinks[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+				drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
 				
 
 			//40 => {
@@ -492,12 +512,28 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				println!("Here Here {} {}", panelcoordinates[i][0], panelcoordinates[i][1]);
 				
 				
-				
-				
-				drawpng(&xconnection, panel, "audio-volume-muted.png", panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-				drawpng(&xconnection, panel, "network-offline.png", panelcoordinates[i][0] + 23, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-				drawpng(&xconnection, panel, "weather-snow.png", panelcoordinates[i][0] + 43, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-				
+								
+				let mut start = 16;
+				//This is dumb. Surely there was a better way to print icons right to left.
+				//Anyway, this bit of code will hopefully save something.
+				//Reorder this when the default number of expected icons increases.
+				if panelicons[27][3].is_empty() {
+					start = 28;
+				} else if panelicons[23][3].is_empty() {
+					start = 24;
+				} else if panelicons[19][3].is_empty() {
+					start = 20;
+				}
+				//Check panelicons from Start to 31 and print them right to left in the notificaiton tray.
+				let mut counter = 0;
+				for b in start..=31 {
+					if !panelicons[b][3].is_empty() {
+						println!("Tray Icons {} {}", counter, b);
+						drawpng(&xconnection, panel, &panelicons[b][3], panelcoordinates[i][0] + 3 + (counter * 20), 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+						counter += 1;
+					}
+				}
+
 			}
 			_ => {
 				println!("{} {} {} {}", panelitems[i][0], panelcoordinates[i][0], panelcoordinates[i][1], panelwindows[i][0]);
@@ -714,7 +750,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 								}
 							}
 							//Draw the taskbar window buttons.
-							drawpanelwindows(&xconnection, panel, 61, width - notification - 67, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers, &wm)?;
+							drawpanelwindows(&xconnection, panel, 61, width - panelcoordinates[trayindex as usize][1] - 67, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers, &wm)?;
 						}
 					
 					
@@ -725,9 +761,9 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					
 					
 						if press.event_y > height - 20 && press.event_y < height - 5 {
-							if press.event_x > width - notification {
+							if press.event_x > width - panelcoordinates[trayindex as usize][1] {
 								if press.event_x < width - 60 {
-									let clicked_icon = icons - 1 - (press.event_x - (width - notification)) / 20;
+									let clicked_icon = icons as i16 - 1 - (press.event_x - (width - panelcoordinates[trayindex as usize][1])) / 20;
 									if clicked_icon >= 0 {
 										println!("Icon index: {}", clicked_icon + 1);
 									}
