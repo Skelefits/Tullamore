@@ -76,7 +76,7 @@ fn grabexternalwindows<C: Connection>(xconnection: &C, wm: &mut WindowManager, r
             if attributes.map_state == MapState::VIEWABLE && !attributes.override_redirect {
                 if let Ok(geometry) = xconnection.get_geometry(window)?.reply() {
                     let title = xconnection.get_property(false, window, AtomEnum::WM_NAME, AtomEnum::STRING, 0, u32::MAX,)?.reply().ok().and_then(|prop| String::from_utf8(prop.value).ok()).unwrap_or_else(|| String::from("Unknown"));
-					//I think we may be able to get away with eventually needing the below line.
+					//I think we may be able to get away with eventually removing the below line.
 					wm.installexternalwindow(window, window, title, geometry.x, geometry.y, geometry.width as i16, geometry.height as i16, 0);
                 }
             }
@@ -363,14 +363,35 @@ fn definepanelicons(link: &mut [[String; 4]; 32], icons:  &mut u8) {
 	link[3] = [String::from(""), "Web Browser".to_string(), "The Internet is for the weak!".to_string(), "weather-snow.png".to_string()];
 	
 	
-	link[31] = [String::from(""), "Sound".to_string(), "Sound Muted".to_string(), "audio-volume-muted.png".to_string()];
-	link[30] = [String::from(""), "Network".to_string(), "Network Offline".to_string(), "network-offline.png".to_string()];
-	link[29] = [String::from(""), "Weather".to_string(), "Snowing".to_string(), "weather-snow.png".to_string()];
+	//link[31] = [String::from(""), "Sound".to_string(), "Sound Muted".to_string(), "audio-volume-muted.png".to_string()];
+	//link[30] = [String::from(""), "Network".to_string(), "Network Offline".to_string(), "network-offline.png".to_string()];
+	//link[29] = [String::from(""), "Weather".to_string(), "Snowing".to_string(), "weather-snow.png".to_string()];
 	
 
-	*icons = 3;
+	*icons = 0;
 }
 
+pub fn addpanelicon(tray: bool, label: String, tooltip: String, icon: String, link: &mut [[String; 4]; 32], icons: &mut u8,) {
+    let entry = [String::from(""), label, tooltip, icon];
+    if !tray {
+        //Add to Quick Links!
+        for i in 0..16 {
+            if link[i][3].is_empty() {
+                link[i] = entry;
+                break;
+            }
+        }
+    } else {
+        //Add to tray!
+        for i in (16..32).rev() {
+            if link[i][3].is_empty() {
+                link[i] = entry;
+                *icons += 1;
+                break;
+            }
+        }
+    }
+}
 
 
 fn desktop() -> Result<(), Box<dyn Error>> {
@@ -394,6 +415,19 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	let mut panelicons: [[String; 4]; 32] = Default::default();
 	let mut icons = 0 as u8;
 	definepanelicons(&mut panelicons, &mut icons);
+	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
+	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
+	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
+	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
+	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
+	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
+	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
+	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
+	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
+
+
+
+
 	
 	
 	let mut panelitems: [[u8; 1]; 128] = [[0; 1]; 128];
