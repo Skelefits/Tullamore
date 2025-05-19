@@ -310,34 +310,21 @@ fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i1
 	panelcoordinates[0] = [2, 54];
 	panelwindows[0] = [0];
 	
-	panelitems[1] = [30]; //Test Link 1
-	panelcoordinates[1] = [60, 23];
-	panelwindows[1] = [1];
+	//panelitems[4] = [40]; 
+	//panelcoordinates[4] = [120, 100];
+	//panelwindows[4] = [999];
+	
+	//panelitems[5] = [40];
+	//panelcoordinates[5] = [230, 100];
+	//panelwindows[5] = [999];
 	
 	
-	panelitems[2] = [30]; //Test Link 2
-	panelcoordinates[2] = [60+23, 0];
-	panelwindows[2] = [2];
-	
-	panelitems[3] = [30]; //Test Link 3
-	panelcoordinates[3] = [60+23+23, 0];
-	panelwindows[3] = [3];
-	
-	panelitems[4] = [40]; 
-	panelcoordinates[4] = [120, 100];
-	panelwindows[4] = [999];
-	
-	panelitems[5] = [40];
-	panelcoordinates[5] = [230, 100];
-	panelwindows[5] = [999];
-	
-	
-	panelitems[6] = [41];
-	panelcoordinates[6] = [340, 100];
-	panelwindows[6] = [999];
+	//panelitems[6] = [41];
+	//panelcoordinates[6] = [340, 100];
+	//panelwindows[6] = [999];
 	
 	let notification = ((icons as i16 *20) + 60) as i16; //took ages to work out icons was causing a buffer overflow
-	*trayindex = 7;
+	*trayindex = 1;
 
 
 	println!("Width ({}) Coordinates ({}) Notification ({}) Icons ({}) Tray Index ({})", width, width - notification - 3, notification, icons, trayindex);
@@ -375,7 +362,7 @@ fn shiftpanelicon(index: usize, panelitems: &mut [[u8; 1]; 128], panelcoordinate
     for i in (index..127).rev() {
         panelitems[i + 1] = panelitems[i];
 		panelcoordinates[i + 1][0] = panelcoordinates[i][0];
-        if panelitems[i][0] < 60 as u8 {  // Fixed: accessing the first element of the array
+        if panelitems[i][0] < 60 as u8 {
             panelcoordinates[i + 1][0] = panelcoordinates[i][0] + 20;
         } else {
             panelcoordinates[i + 1][0] = panelcoordinates[i][0];
@@ -465,9 +452,9 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	definepanelitems(&mut panelitems, &mut panelcoordinates, &mut panelwindows, width, icons, &mut trayindex);
 	
 	
-	addpanelicon(3, "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut trayindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
-	addpanelicon(3, "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut trayindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
-	addpanelicon(3, "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut trayindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
+	addpanelicon(1, "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut trayindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
+	addpanelicon(1, "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut trayindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
+	addpanelicon(1, "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut trayindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
 	
 	
 	
