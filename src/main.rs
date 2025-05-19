@@ -319,7 +319,6 @@ fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i1
 	panelcoordinates[2] = [60+23, 0];
 	panelwindows[2] = [2];
 	
-	
 	panelitems[3] = [30]; //Test Link 3
 	panelcoordinates[3] = [60+23+23, 0];
 	panelwindows[3] = [3];
@@ -337,12 +336,12 @@ fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i1
 	panelcoordinates[6] = [340, 100];
 	panelwindows[6] = [999];
 	
-	
-	let notification = ((icons*20) + 60) as i16;
+	let notification = ((icons as i16 *20) + 60) as i16; //took ages to work out icons was causing a buffer overflow
 	*trayindex = 7;
 
-	
-	
+
+	println!("Width ({}) Coordinates ({}) Notification ({}) Icons ({}) Tray Index ({})", width, width - notification - 3, notification, icons, trayindex);
+
 	panelitems[*trayindex as usize] = [60]; //Notification Area
 	panelcoordinates[*trayindex as usize] = [width - notification - 3, notification];
 	panelwindows[*trayindex as usize] = [0];
@@ -363,35 +362,60 @@ fn definepanelicons(link: &mut [[String; 4]; 32], icons:  &mut u8) {
 	link[3] = [String::from(""), "Web Browser".to_string(), "The Internet is for the weak!".to_string(), "weather-snow.png".to_string()];
 	
 	
-	//link[31] = [String::from(""), "Sound".to_string(), "Sound Muted".to_string(), "audio-volume-muted.png".to_string()];
-	//link[30] = [String::from(""), "Network".to_string(), "Network Offline".to_string(), "network-offline.png".to_string()];
-	//link[29] = [String::from(""), "Weather".to_string(), "Snowing".to_string(), "weather-snow.png".to_string()];
+	link[31] = [String::from(""), "Sound".to_string(), "Sound Muted".to_string(), "audio-volume-muted.png".to_string()];
+	link[30] = [String::from(""), "Network".to_string(), "Network Offline".to_string(), "network-offline.png".to_string()];
+	link[29] = [String::from(""), "Weather".to_string(), "Snowing".to_string(), "weather-snow.png".to_string()];
 	
 
-	*icons = 0;
+	*icons = 3;
 }
 
-pub fn addpanelicon(tray: bool, label: String, tooltip: String, icon: String, link: &mut [[String; 4]; 32], icons: &mut u8,) {
-    let entry = [String::from(""), label, tooltip, icon];
-    if !tray {
-        //Add to Quick Links!
-        for i in 0..16 {
-            if link[i][3].is_empty() {
-                link[i] = entry;
-                break;
-            }
-        }
-    } else {
-        //Add to tray!
-        for i in (16..32).rev() {
-            if link[i][3].is_empty() {
-                link[i] = entry;
-                *icons += 1;
-                break;
-            }
+fn shiftpanelicon(index: usize, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
+    //Move everything from index to the right.
+    for i in (index + 1..128).rev() {
+        panelitems[i] = panelitems[i - 1];
+        panelcoordinates[i] = panelcoordinates[i - 1];
+        panelwindows[i] = panelwindows[i - 1];
+    }
+	//Clear index.
+    panelitems[index] = [0];
+    panelcoordinates[index] = [0, 0];
+    panelwindows[index] = [0];
+}
+
+fn insertpanelicon(index: usize, icon: u32, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
+    shiftpanelicon(index, panelitems, panelcoordinates, panelwindows, panelicons);
+    panelitems[index] = [30];  // Icon Link type
+	
+	
+    let prev_x = if index > 0 { panelcoordinates[index-1][0] + panelcoordinates[index-1][1] } else { 60 };
+    panelcoordinates[index] = [prev_x, 23];
+    panelwindows[index] = [icon];
+}
+
+pub fn addpanelicon(tray: usize, label: String, tooltip: String, icon: String, link: &mut [[String; 4]; 32], icons: &mut u8, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128]) {
+	//Will do nothing if out of space. Probably want to return an error or something.
+    //Add to Quick Links!
+    for i in 0..15 {
+        if link[i][3].is_empty() {
+            link[i] = [String::from(""), label, tooltip, icon];
+            insertpanelicon(tray, i as u32, panelitems, panelcoordinates, panelwindows, link);
+            break;
         }
     }
 }
+
+pub fn addnotificationicon(label: String, tooltip: String, icon: String, link: &mut [[String; 4]; 32], icons: &mut u8) {
+	//Will do nothing if out of space. Probably want to return an error or something.
+    for i in (16..32).rev() {
+        if link[i][3].is_empty() {
+            link[i] = [String::from(""), label, tooltip, icon];
+            *icons += 1;
+            break;
+        }
+    }
+}
+
 
 
 fn desktop() -> Result<(), Box<dyn Error>> {
@@ -415,16 +439,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	let mut panelicons: [[String; 4]; 32] = Default::default();
 	let mut icons = 0 as u8;
 	definepanelicons(&mut panelicons, &mut icons);
-	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
-	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
-	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
-	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
-	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
-	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
-	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
-	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
-	addpanelicon(true, "yo".to_string(), "yo".to_string(), "audio-volume-muted.png".to_string(), &mut panelicons, &mut icons);
-
+	
 
 
 
@@ -434,9 +449,16 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	let mut panelcoordinates: [[i16; 2]; 128] = [[0; 2]; 128];
 	let mut panelwindows: [[u32; 1]; 128] = [[0; 1]; 128];
 
+	addnotificationicon("yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut icons,);
+	addnotificationicon("yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut icons,);
 
 	let mut trayindex = 7 as u8;
 	definepanelitems(&mut panelitems, &mut panelcoordinates, &mut panelwindows, width, icons, &mut trayindex);
+	
+	
+	addpanelicon(3, "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut icons, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
+	
+	
 	
 	
     //let mut panellinks: [[String; 4]; 16] = [[String; 4]; 16];
@@ -527,11 +549,12 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				//Three pixels to the left of the icon, four to the right.
 				drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
 				
+			}
+			40 => {
+				//startx: i16, starty: i16, framewidth: i16, frameheight: i1
+				drawbumpyframe(&xconnection, window, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+				drawpng(&xconnection, window, "computer.png", panelcoordinates[i][0] + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;	
 
-			//40 => {
-				//drawbumpyframe(xconnection, window, offset, 4, finalwidth, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-				//drawpng(xconnection, window, "computer.png", offset + 4, 7, ICON_WIDTH, ICON_HEIGHT, COLOURS[HIGHBACKGROUND_COLOUR])?;	
-			//}
 				
 			}
 			60 => {
