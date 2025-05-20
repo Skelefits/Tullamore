@@ -37,6 +37,7 @@ use trundle::drawstartbutton;
 use trundle::drawpng;
 use trundle::drawclock;
 use trundle::updateclock;
+use trundle::squishtext;
 
 use trundle::{
     COLOURS,
@@ -571,75 +572,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	
 
 
-	//Let's draw the panel.
-    xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: 0, y: 0, width: width as u16, height: panelheight }])?; //Draw panel background.
-    xconnection.poly_line(CoordMode::PREVIOUS, panel, gc_highlight, &[Point { x: 0, y: 1 }, Point { x: width as i16, y: 0 }])?; //Draw panel highlight.
 
-
-
-	//We will loop through all items in panel[?] and display them.
-	for i in 0..128 {
-		match panelitems[i][0] {
-			0 => {
-				//Invalid panel item, assume the rest are too!
-				break;
-			}
-			1 => {
-				//Start Button
-				drawstartbutton(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-			}
-			30 => {
-				//Three pixels to the left of the icon, four to the right.
-				drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-				
-			}
-			40 => {
-				//startx: i16, starty: i16, framewidth: i16, frameheight: i1
-				drawbumpyframe(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-				drawpng(&xconnection, panel, "computer.png", panelcoordinates[i][0] + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;	
-
-				
-			}
-			60 => {
-				//Notification Area
-				
-				//Notification - Depression
-				drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowbackground)?;
-				
-				
-				//Load notification graphic. 
-				
-				println!("Here Here {} {}", panelcoordinates[i][0], panelcoordinates[i][1]);
-				
-				
-								
-				let mut start = 16;
-				//This is dumb. Surely there was a better way to print icons right to left.
-				//Anyway, this bit of code will hopefully save something.
-				//Reorder this when the default number of expected icons increases.
-				if panelicons[27][3].is_empty() {
-					start = 28;
-				} else if panelicons[23][3].is_empty() {
-					start = 24;
-				} else if panelicons[19][3].is_empty() {
-					start = 20;
-				}
-				//Check panelicons from Start to 31 and print them right to left in the notificaiton tray.
-				let mut counter = 0;
-				for b in start..=31 {
-					if !panelicons[b][3].is_empty() {
-						println!("Tray Icons {} {}", counter, b);
-						drawpng(&xconnection, panel, &panelicons[b][3], panelcoordinates[i][0] + 3 + (counter * 20), 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-						counter += 1;
-					}
-				}
-
-			}
-			_ => {
-				println!("{} {} {} {}", panelitems[i][0], panelcoordinates[i][0], panelcoordinates[i][1], panelwindows[i][0]);
-			}
-		}
-	}
 
 
 	//Draw window boxes on the panel.
@@ -680,7 +613,64 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 	let mut xordrawn: Option<(i16, i16, u16, u16)> = None;
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	let mut draw = 1;
+
+
+
+
     loop {
+		
+		
+		
+
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
+		
 		
 		//Lets collect everything we have to do and execute at the end.
 
@@ -850,7 +840,8 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 								}
 							}
 							//Draw the taskbar window buttons.
-							drawpanelwindows(&xconnection, panel, 61, width - panelcoordinates[trayindex as usize][1] - 67, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers, &wm)?;
+							//drawpanelwindows(&xconnection, panel, 61, width - panelcoordinates[trayindex as usize][1] - 67, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers, &wm)?;
+							draw = 40;
 						}
 					
 					
@@ -881,6 +872,120 @@ fn desktop() -> Result<(), Box<dyn Error>> {
                 Event::Error(_) => println!("bug bug"), _ => (),
             }
 
+			
+			
+	if draw > 0 {
+
+		//Let's draw the panel.
+		xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: 0, y: 0, width: width as u16, height: panelheight }])?; //Draw panel background.
+		xconnection.poly_line(CoordMode::PREVIOUS, panel, gc_highlight, &[Point { x: 0, y: 1 }, Point { x: width as i16, y: 0 }])?; //Draw panel highlight.
+
+		if draw == 40 {
+			//Redraw the tray windows only!
+			for i in (1..(trayindex as usize)).rev() {
+				match panelitems[i][0] {
+					40 => {
+						//startx: i16, starty: i16, framewidth: i16, frameheight: i1
+						if let Some(state) = wm.getwindow(&panelwindows[i][0]) {
+							let focused = state.map == 2;  // 2 means focused, 3 means visible but unfocused
+							if focused {
+								drawdepressedbumpyframe(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+								drawpng(&xconnection, panel, "computer.png", panelcoordinates[i][0] + 4, 8, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+								xconnection.image_text8(panel, gc_lowlight, panelcoordinates[i][0] + 24, 20, squishtext(&state.title, panelcoordinates[i][1] - 28, 6).as_bytes())?;
+							} else {
+								drawbumpyframe(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+								drawpng(&xconnection, panel, "computer.png", panelcoordinates[i][0] + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+								xconnection.image_text8(panel, gc_lowlight, panelcoordinates[i][0] + 24, 19, squishtext(&state.title, panelcoordinates[i][1] - 28, 6).as_bytes())?;
+							}
+						}
+					}
+					_ => {
+						break;
+						
+					}
+				}
+			}
+		}
+
+		//We will loop through all items in panel[?] and display them.
+		for i in 0..(trayindex as usize + 1) {
+			match panelitems[i][0] {
+				0 => {
+					//Invalid panel item, assume the rest are too!
+					break;
+				}
+				1 => {
+					//Start Button
+					drawstartbutton(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+				}
+				30 => {
+					//Three pixels to the left of the icon, four to the right.
+					drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+					
+				}
+				40 => {
+					//startx: i16, starty: i16, framewidth: i16, frameheight: i1
+					if let Some(state) = wm.getwindow(&panelwindows[i][0]) {
+						let focused = state.map == 2;  // 2 means focused, 3 means visible but unfocused
+						if focused {
+							drawdepressedbumpyframe(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+							drawpng(&xconnection, panel, "computer.png", panelcoordinates[i][0] + 4, 8, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+							xconnection.image_text8(panel, gc_lowlight, panelcoordinates[i][0] + 24, 20, squishtext(&state.title, panelcoordinates[i][1] - 28, 6).as_bytes())?;
+						} else {
+							drawbumpyframe(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+							drawpng(&xconnection, panel, "computer.png", panelcoordinates[i][0] + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+							xconnection.image_text8(panel, gc_lowlight, panelcoordinates[i][0] + 24, 19, squishtext(&state.title, panelcoordinates[i][1] - 28, 6).as_bytes())?;
+						}
+					}
+
+
+					
+				}
+				60 => {
+					//Notification Area
+					
+					//Notification - Depression
+					drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowbackground)?;
+					
+					
+					//Load notification graphic. 
+					
+					println!("Here Here {} {}", panelcoordinates[i][0], panelcoordinates[i][1]);
+					
+					
+									
+					let mut start = 16;
+					//This is dumb. Surely there was a better way to print icons right to left.
+					//Anyway, this bit of code will hopefully save something.
+					//Reorder this when the default number of expected icons increases.
+					if panelicons[27][3].is_empty() {
+						start = 28;
+					} else if panelicons[23][3].is_empty() {
+						start = 24;
+					} else if panelicons[19][3].is_empty() {
+						start = 20;
+					}
+					//Check panelicons from Start to 31 and print them right to left in the notificaiton tray.
+					let mut counter = 0;
+					for b in start..=31 {
+						if !panelicons[b][3].is_empty() {
+							println!("Tray Icons {} {}", counter, b);
+							drawpng(&xconnection, panel, &panelicons[b][3], panelcoordinates[i][0] + 3 + (counter * 20), 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+							counter += 1;
+						}
+					}
+					(_, pminute, phour) = drawclock(&xconnection, panel, gc_lowlight, width, clockheight)?;
+
+				}
+				_ => {
+					println!("{} {} {} {}", panelitems[i][0], panelcoordinates[i][0], panelcoordinates[i][1], panelwindows[i][0]);
+				}
+			}
+		}
+		draw = 0;
+		//thread::sleep(Duration::from_millis(10));
+	}
+			
 			
 		xconnection.flush()?;
     }

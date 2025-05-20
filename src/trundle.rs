@@ -42,6 +42,19 @@ lazy_static! {
 	
 }
 
+pub fn squishtext(text: &str, width: i16, length: i16) -> String {
+    let characters = (width / length).max(1) as usize;
+    
+    if text.len() <= characters {
+        text.to_string()
+    } else if characters > 3 {
+        format!("{}...", &text[0..(characters - 3)])
+    } else {
+        text[0..characters].to_string()
+    }
+}
+
+
 pub fn loadcolours<const N: usize>(file_path: &str, default: [u32; N]) -> Vec<Option<u32>> {
     match std::fs::read_to_string(file_path) {
         Ok(contents) => {
