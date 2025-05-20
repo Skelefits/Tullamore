@@ -286,6 +286,9 @@ fn createwindow<C: Connection>(xconnection: &C, screen: &Screen, x: i16, y: i16,
     xconnection.map_window(window)?;
     let state = WindowState {window, frame, title: String::from_utf8_lossy(title).to_string(), x, y, z: 0, width: width as i16, height: height as i16, map: 2, order: 0};
     windowmanager.insertwindow(state);
+	
+
+	
     Ok(window)
 }
 
@@ -309,6 +312,9 @@ fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i1
 	//[X, Width]
 	panelcoordinates[0] = [2, 54];
 	panelwindows[0] = [0];
+	
+	//The icons start at 60, and are 23 wide each.
+	
 	
 	//panelitems[4] = [40]; 
 	//panelcoordinates[4] = [120, 100];
@@ -357,13 +363,17 @@ fn definepanelicons(link: &mut [[String; 4]; 32], icons:  &mut u8) {
 	*icons = 3;
 }
 
-fn shiftpanelicon(index: usize, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
+fn shiftpanelicon(index: usize, trayindex: &mut u8, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
     //Move everything from index to the right.
-    for i in (index..127).rev() {
+	*trayindex += 1;
+	
+    for i in (index..*trayindex as usize).rev() {
         panelitems[i + 1] = panelitems[i];
 		panelcoordinates[i + 1][0] = panelcoordinates[i][0];
+
+			
         if panelitems[i][0] < 60 as u8 {
-            panelcoordinates[i + 1][0] = panelcoordinates[i][0] + 20;
+            panelcoordinates[i + 1][0] = panelcoordinates[i][0] + 23;
         } else {
             panelcoordinates[i + 1][0] = panelcoordinates[i][0];
         }
@@ -372,36 +382,63 @@ fn shiftpanelicon(index: usize, panelitems: &mut [[u8; 1]; 128], panelcoordinate
     }
 	//Clear index.
     panelitems[index] = [0];
-    panelcoordinates[index] = [0, 0];
+	if index > 0 {
+		//New coords are previous index's start location plus width.
+		if index == 1 {
+			//First icon next to the start button.
+			panelcoordinates[index][0] = 60;
+		} else {
+			panelcoordinates[index][0] = panelcoordinates[index - 1][0] + panelcoordinates[index - 1][1];
+		}
+		
+	}
     panelwindows[index] = [0];
+	
+
 }
 
-fn insertpanelicon(index: usize, icon: u32, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
-	let px = panelcoordinates[index][0];
-	shiftpanelicon(index, panelitems, panelcoordinates, panelwindows, panelicons);
-	
-    panelitems[index] = [30];  // Icon Link type
-	
-	
-    
-    panelcoordinates[index] = [px, 23];
+fn insertpanelicon(index: usize, trayindex: &mut u8, icon: u32, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
+	//let px = panelcoordinates[index - 1][0] + panelcoordinates[index - 1][1];
+	//
+	shiftpanelicon(index, trayindex, panelitems, panelcoordinates, panelwindows, panelicons);
+    panelitems[index] = [30];
+    panelcoordinates[index] = [panelcoordinates[index][0], 23];
     panelwindows[index] = [icon];
+	
 }
 
-pub fn addpanelicon(tray: usize, label: String, tooltip: String, icon: String, link: &mut [[String; 4]; 32], trayindex: &mut u8, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128]) {
+
+fn insertpanelwindow(trayindex: &mut u8, window: u32, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
+	//let px = panelcoordinates[index - 1][0] + panelcoordinates[index - 1][1];
+	//
+	
+	let index = *trayindex as usize;
+	
+	shiftpanelicon(index, trayindex, panelitems, panelcoordinates, panelwindows, panelicons);
+    panelitems[index] = [40];
+    panelcoordinates[index] = [panelcoordinates[index][0] + 3, 160];
+    panelwindows[index] = [window];
+	
+}
+
+
+
+
+
+fn addpanelicon(tray: usize, label: String, tooltip: String, icon: String, link: &mut [[String; 4]; 32], trayindex: &mut u8, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128]) {
 	//Will do nothing if out of space. Probably want to return an error or something.
     //Add to Quick Links!
     for i in 0..15 {
         if link[i][3].is_empty() {
             link[i] = [String::from(""), label, tooltip, icon];
-            insertpanelicon(tray, i as u32, panelitems, panelcoordinates, panelwindows, link);
-			*trayindex += 1;
+            insertpanelicon(tray, trayindex, i as u32, panelitems, panelcoordinates, panelwindows, link);
+
             break;
         }
     }
 }
 
-pub fn addnotificationicon(label: String, tooltip: String, icon: String, link: &mut [[String; 4]; 32], icons: &mut u8) {
+fn addnotificationicon(label: String, tooltip: String, icon: String, link: &mut [[String; 4]; 32], icons: &mut u8) {
 	//Will do nothing if out of space. Probably want to return an error or something.
     for i in (16..32).rev() {
         if link[i][3].is_empty() {
@@ -518,6 +555,14 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	
 	let test3 = createwindow(&xconnection, &screen, 100, 100, 100, 100, b"test3", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 
+	println!("test1 {} test2 {} test3 {}", test1, test2, test3);
+
+
+	insertpanelwindow(&mut trayindex, test1, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+	insertpanelwindow(&mut trayindex, test2, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+	insertpanelwindow(&mut trayindex, test3, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+
+
 	wm.fillblanks();
 
 	redrawframes(&xconnection, &wm, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
@@ -550,8 +595,8 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 			}
 			40 => {
 				//startx: i16, starty: i16, framewidth: i16, frameheight: i1
-				drawbumpyframe(&xconnection, window, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-				drawpng(&xconnection, window, "computer.png", panelcoordinates[i][0] + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;	
+				drawbumpyframe(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+				drawpng(&xconnection, panel, "computer.png", panelcoordinates[i][0] + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;	
 
 				
 			}
