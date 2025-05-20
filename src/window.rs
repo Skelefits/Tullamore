@@ -22,10 +22,12 @@ use crate::trundle::windowborder;
 use crate::trundle::drawtitlebar;
 use crate::trundle::grabwindowtitle;
 use crate::trundle::drawtitletext;
+use crate::trundle::squishtext;
 use crate::drawdepressedbumpyframe;
 use crate::drawpng;
 use crate::drawbumpyframe;
 use crate::WindowManager;
+
 
 use crate::trundle::{
     COLOURS,
@@ -150,5 +152,21 @@ pub fn drawpanelwindows<C: Connection>(xconnection: &C, window: u32, startx: i16
         if offset + finalwidth > startx + workingwidth { eprintln!("Uh-oh! We are out of space at Window {}!", i+1); break; }
     }
     xconnection.flush()?;
+    Ok(())
+}
+
+pub fn drawwindowbuttons<C: Connection>(xconnection: &C, panel: Window, window_id: Window, x: i16, width: i16, wm: &WindowManager, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_highcheckers: u32) -> Result<(), Box<dyn Error>> {
+    if let Some(state) = wm.getwindow(&window_id) {
+        let focused = state.map == 2;  //2 = focus, 3 = visible but unfocused
+        if focused {
+            drawdepressedbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+            drawpng(xconnection, panel, "computer.png", x + 4, 8, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+            xconnection.image_text8(panel, gc_lowlight, x + 24, 20, squishtext(&state.title, width - 28, 6).as_bytes())?;
+        } else {
+            drawbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+            drawpng(xconnection, panel, "computer.png", x + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+            xconnection.image_text8(panel, gc_lowlight, x + 24, 19, squishtext(&state.title, width - 28, 6).as_bytes())?;
+        }
+    }
     Ok(())
 }
