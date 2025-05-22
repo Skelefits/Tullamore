@@ -293,7 +293,7 @@ fn createwindow<C: Connection>(xconnection: &C, screen: &Screen, x: i16, y: i16,
     Ok(window)
 }
 
-fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], width: i16, icons: u8, trayindex: &mut u8) {
+fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], width: i16, icons: u8, panelindex: &mut [u8; 6]) {
     //Type and Actions
 	// 1 = Start Button Ready
 	// 2 = Start Button Pressed
@@ -313,6 +313,7 @@ fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i1
 	//[X, Width]
 	panelcoordinates[0] = [2, 54];
 	panelwindows[0] = [0];
+	panelindex[0] = 0;
 	
 	//The icons start at 60, and are 23 wide each.
 	
@@ -331,14 +332,26 @@ fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i1
 	//panelwindows[6] = [999];
 	
 	let notification = ((icons as i16 *20) + 60) as i16; //took ages to work out icons was causing a buffer overflow
-	*trayindex = 1;
+
+	panelindex[1] = 1;
+	panelindex[2] = 1;
+	panelindex[3] = 1;
+	panelindex[4] = 1;
+	panelindex[5] = 1;
+	
+	//LINKSTART 1;
+	//LINKEND 2;
+	//WINDOWSTART 3;
+	//WINDOWEND 4;
+	//NOTIFICATIONSTART 5;
+	
 
 
-	println!("Width ({}) Coordinates ({}) Notification ({}) Icons ({}) Tray Index ({})", width, width - notification - 3, notification, icons, trayindex);
+	println!("Width ({}) Coordinates ({}) Notification ({}) Icons ({})", width, width - notification - 3, notification, icons);
 
-	panelitems[*trayindex as usize] = [60]; //Notification Area
-	panelcoordinates[*trayindex as usize] = [width - notification - 3, notification];
-	panelwindows[*trayindex as usize] = [0];
+	panelitems[panelindex[5] as usize] = [60]; //Notification Area
+	panelcoordinates[panelindex[5] as usize] = [width - notification - 3, notification];
+	panelwindows[panelindex[5] as usize] = [0];
 }
 
 fn definepanelicons(link: &mut [[String; 4]; 32], icons:  &mut u8) {
@@ -364,11 +377,23 @@ fn definepanelicons(link: &mut [[String; 4]; 32], icons:  &mut u8) {
 	*icons = 3;
 }
 
-fn shiftpanelicon(index: usize, trayindex: &mut u8, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
+fn updatepanelindex(index: usize, panelindex: &mut [u8; 6]) {
+	//Start with moving the indexes.
+	for i in index..=5 {
+		panelindex[i] += 1;
+	}
+}
+
+fn shiftpanelicon(index: usize, panelindex: &mut [u8; 6], panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
+
+	//This function does not adjust panelindex for everything. They should be updated before calling this function.
+
     //Move everything from index to the right.
-	*trayindex += 1;
 	
-    for i in (index..*trayindex as usize).rev() {
+	
+
+	
+    for i in (index..panelindex[5] as usize).rev() {
         panelitems[i + 1] = panelitems[i];
 		panelcoordinates[i + 1][0] = panelcoordinates[i][0];
 
@@ -398,10 +423,13 @@ fn shiftpanelicon(index: usize, trayindex: &mut u8, panelitems: &mut [[u8; 1]; 1
 
 }
 
-fn insertpanelicon(index: usize, trayindex: &mut u8, icon: u32, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
+fn insertpanelicon(index: usize, panelindex: &mut [u8; 6], icon: u32, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
 	//let px = panelcoordinates[index - 1][0] + panelcoordinates[index - 1][1];
 	//
-	shiftpanelicon(index, trayindex, panelitems, panelcoordinates, panelwindows, panelicons);
+	
+	updatepanelindex(2, panelindex); //Increment indexes from the end of the link area.
+	
+	shiftpanelicon(index, panelindex, panelitems, panelcoordinates, panelwindows, panelicons);
     panelitems[index] = [30];
     panelcoordinates[index] = [panelcoordinates[index][0], 23];
     panelwindows[index] = [icon];
@@ -409,40 +437,31 @@ fn insertpanelicon(index: usize, trayindex: &mut u8, icon: u32, panelitems: &mut
 }
 
 
-fn insertpanelwindow(trayindex: &mut u8, window: u32, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
+fn insertpanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
 	//let px = panelcoordinates[index - 1][0] + panelcoordinates[index - 1][1];
 	//
 	
-	let index = *trayindex as usize;
-	
-    shiftpanelicon(index, trayindex, panelitems, panelcoordinates, panelwindows, panelicons);
+	updatepanelindex(4, panelindex); //Increment indexes from the end of the window area.
+	let index = panelindex[4] as usize + 1;
+    shiftpanelicon(index, panelindex, panelitems, panelcoordinates, panelwindows, panelicons);
     panelitems[index] = [40];
     panelwindows[index] = [window];
 
-    let tray = panelcoordinates[*trayindex as usize][0];
-    let default_width = 160;
+    let tray = panelcoordinates[panelindex[5] as usize][0];
     
-    if panelcoordinates[index][0] + default_width < tray {
-        panelcoordinates[index] = [panelcoordinates[index][0] + 3, default_width];
+    if panelcoordinates[index][0] + 160 < tray {
+        panelcoordinates[index] = [panelcoordinates[index][0] + 3, 160];
     } else {
-        // Find first button position
-        let mut firstbutton = 1;
-        for i in (1..*trayindex as usize - 1).rev() {
-            if panelitems[i][0] != 40 {
-                firstbutton = i + 1;
-                break;
-            }
-        }
 
-        // Calculate new widths and update positions
-        let startx = panelcoordinates[firstbutton][0];
+        //Window buttons go into the notification area. Let's calculate a new width for them.
+        let startx = panelcoordinates[panelindex[3] as usize][0];
         let endx = tray - 9;
-        let button_width = (endx - startx) / (*trayindex as i16 - firstbutton as i16);
+        let width = (endx - startx) / (3 + panelindex[5] as i16 - panelindex[3] as i16);
         
         let mut x = startx;
-        for i in firstbutton..*trayindex as usize {
-            panelcoordinates[i] = [x, button_width];
-            x += button_width + 3;
+        for i in panelindex[3]..panelindex[5] {
+            panelcoordinates[i as usize] = [x, width];
+            x += width + 3;
         }
     }
 	
@@ -452,14 +471,13 @@ fn insertpanelwindow(trayindex: &mut u8, window: u32, panelitems: &mut [[u8; 1];
 
 
 
-fn addpanelicon(tray: usize, label: String, tooltip: String, icon: String, link: &mut [[String; 4]; 32], trayindex: &mut u8, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128]) {
+fn addpanelicon(tray: u8, label: String, tooltip: String, icon: String, link: &mut [[String; 4]; 32], panelindex: &mut [u8; 6], panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128]) {
 	//Will do nothing if out of space. Probably want to return an error or something.
     //Add to Quick Links!
     for i in 0..15 {
         if link[i][3].is_empty() {
             link[i] = [String::from(""), label, tooltip, icon];
-            insertpanelicon(tray, trayindex, i as u32, panelitems, panelcoordinates, panelwindows, link);
-
+            insertpanelicon(tray as usize, panelindex, i as u32, panelitems, panelcoordinates, panelwindows, link);
             break;
         }
     }
@@ -512,13 +530,17 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	addnotificationicon("yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut icons,);
 	addnotificationicon("yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut icons,);
 
-	let mut trayindex = 7 as u8;
-	definepanelitems(&mut panelitems, &mut panelcoordinates, &mut panelwindows, width, icons, &mut trayindex);
+	//let mut trayindex = 7 as u8;
+	let mut panelindex: [u8; 6] = [0; 6];
 	
 	
-	addpanelicon(1, "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut trayindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
-	addpanelicon(1, "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut trayindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
-	addpanelicon(1, "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut trayindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
+	
+	definepanelitems(&mut panelitems, &mut panelcoordinates, &mut panelwindows, width, icons, &mut panelindex);
+	
+	
+	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
+	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
+	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
 	
 	
 	
@@ -585,9 +607,9 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	println!("test1 {} test2 {} test3 {}", test1, test2, test3);
 
 
-	insertpanelwindow(&mut trayindex, test1, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-	insertpanelwindow(&mut trayindex, test2, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-	insertpanelwindow(&mut trayindex, test3, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+	insertpanelwindow(&mut panelindex, test1, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+	insertpanelwindow(&mut panelindex, test2, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+	insertpanelwindow(&mut panelindex, test3, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
 
 
 	wm.fillblanks();
@@ -735,6 +757,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							println!("  title: {}", title);
 							
 							wm.installexternalwindow(target.window, target.window, title, geom.x, geom.y, geom.width as i16, geom.height as i16, 0);
+							insertpanelwindow(&mut panelindex, target.window, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
 
 							if let Ok(frame) = createwmborder(&xconnection, &screen, &wm, target.window, geom.width, geom.height, width, height, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext) {
 								if let Some(state) = wm.windows.get_mut(&target.window) {
@@ -878,9 +901,9 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					
 					
 						if press.event_y > height - 20 && press.event_y < height - 5 {
-							if press.event_x > width - panelcoordinates[trayindex as usize][1] {
+							if press.event_x > width - panelcoordinates[panelindex[5] as usize][1] {
 								if press.event_x < width - 60 {
-									let clicked_icon = icons as i16 - 1 - (press.event_x - (width - panelcoordinates[trayindex as usize][1])) / 20;
+									let clicked_icon = icons as i16 - 1 - (press.event_x - (width - panelcoordinates[panelindex[5] as usize][1])) / 20;
 									if clicked_icon >= 0 {
 										println!("Icon index: {}", clicked_icon + 1);
 									}
@@ -905,7 +928,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 		if draw == 40 {
 			//Redraw the tray windows only!
-			for i in (1..(trayindex as usize)).rev() {
+			for i in (1..(panelindex[5] as usize)).rev() {
 				match panelitems[i][0] {
 					40 => {
 						//startx: i16, starty: i16, framewidth: i16, frameheight: i1
@@ -925,7 +948,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 
 			//We will loop through all items in panel[?] and display them.
-			for i in 0..(trayindex as usize + 1) {
+			for i in 0..(panelindex[5] as usize + 1) {
 				match panelitems[i][0] {
 					0 => {
 						//Invalid panel item, assume the rest are too!
