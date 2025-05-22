@@ -333,10 +333,10 @@ fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i1
 	
 	let notification = ((icons as i16 *20) + 60) as i16; //took ages to work out icons was causing a buffer overflow
 
-	panelindex[1] = 1;
-	panelindex[2] = 1;
-	panelindex[3] = 1;
-	panelindex[4] = 1;
+	panelindex[1] = 0;
+	panelindex[2] = 0;
+	panelindex[3] = 0;
+	panelindex[4] = 0;
 	panelindex[5] = 1;
 	
 	//LINKSTART 1;
@@ -378,19 +378,41 @@ fn definepanelicons(link: &mut [[String; 4]; 32], icons:  &mut u8) {
 }
 
 fn updatepanelindex(index: usize, panelindex: &mut [u8; 6]) {
-	//Start with moving the indexes.
-	for i in index..=5 {
-		panelindex[i] += 1;
-	}
+	//This deals with updating the indexes. It is a lot more complication due to initialization.
+    if index == 2 {
+        panelindex[1] = 1;
+    }
+    match index {
+        2 => {
+            panelindex[2] += 1;
+            panelindex[3] = panelindex[2];
+            panelindex[4] = panelindex[2];
+            panelindex[5] = panelindex[2] + 1;
+        },
+        4 => {
+            if panelindex[3] == panelindex[2] {
+                panelindex[3] = panelindex[2] + 1;
+                panelindex[4] = panelindex[3];
+                panelindex[5] = panelindex[4] + 1;
+            } else {
+                panelindex[4] += 1;
+                panelindex[5] = panelindex[4] + 1;
+            }
+        },
+        _ => {}
+    }
+
+    println!("panelindex contents: [0]={}, [1]={}, [2]={}, [3]={}, [4]={}, [5]={}", 
+        panelindex[0], panelindex[1], panelindex[2], panelindex[3], panelindex[4], panelindex[5]);
 }
 
-fn shiftpanelicon(index: usize, panelindex: &mut [u8; 6], panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
+fn shiftpanelicon(mut index: usize, panelindex: &mut [u8; 6], panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
 
 	//This function does not adjust panelindex for everything. They should be updated before calling this function.
 
     //Move everything from index to the right.
 	
-	
+
 
 	
     for i in (index..panelindex[5] as usize).rev() {
@@ -423,13 +445,20 @@ fn shiftpanelicon(index: usize, panelindex: &mut [u8; 6], panelitems: &mut [[u8;
 
 }
 
-fn insertpanelicon(index: usize, panelindex: &mut [u8; 6], icon: u32, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
+fn insertpanelicon(mut index: usize, panelindex: &mut [u8; 6], icon: u32, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
 	//let px = panelcoordinates[index - 1][0] + panelcoordinates[index - 1][1];
 	//
 	
 	updatepanelindex(2, panelindex); //Increment indexes from the end of the link area.
 	
+	
+	if index == 0 {
+		index = 1;
+	}
 	shiftpanelicon(index, panelindex, panelitems, panelcoordinates, panelwindows, panelicons);
+	
+	
+	
     panelitems[index] = [30];
     panelcoordinates[index] = [panelcoordinates[index][0], 23];
     panelwindows[index] = [icon];
@@ -442,7 +471,14 @@ fn insertpanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u
 	//
 	
 	updatepanelindex(4, panelindex); //Increment indexes from the end of the window area.
-	let index = panelindex[4] as usize + 1;
+	let mut index = panelindex[4] as usize + 1;
+	
+	if index == 0 {
+		index = 1;
+	}
+	
+	
+	
     shiftpanelicon(index, panelindex, panelitems, panelcoordinates, panelwindows, panelicons);
     panelitems[index] = [40];
     panelwindows[index] = [window];
@@ -538,6 +574,9 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	definepanelitems(&mut panelitems, &mut panelcoordinates, &mut panelwindows, width, icons, &mut panelindex);
 	
 	
+	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
+	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
+	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
 	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
 	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
 	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
@@ -949,6 +988,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 			//We will loop through all items in panel[?] and display them.
 			for i in 0..(panelindex[5] as usize + 1) {
+				println!("Index {} - Type {} - X {}", i, panelitems[i][0], panelcoordinates[i][0]);
 				match panelitems[i][0] {
 					0 => {
 						//Invalid panel item, assume the rest are too!
@@ -957,6 +997,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					1 => {
 						//Start Button
 						drawstartbutton(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+						println!("Start Button X {}", panelcoordinates[i][0]);
 					}
 					30 => {
 						//Three pixels to the left of the icon, four to the right.
