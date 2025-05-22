@@ -415,7 +415,7 @@ fn shiftpanelicon(mut index: usize, panelindex: &mut [u8; 6], panelitems: &mut [
 
 
 	
-    for i in (index..panelindex[5] as usize).rev() {
+    for i in (index..=panelindex[5] as usize).rev() {
         panelitems[i + 1] = panelitems[i];
 		panelcoordinates[i + 1][0] = panelcoordinates[i][0];
 
@@ -471,7 +471,7 @@ fn insertpanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u
 	//
 	
 	updatepanelindex(4, panelindex); //Increment indexes from the end of the window area.
-	let mut index = panelindex[4] as usize + 1;
+	let mut index = panelindex[4] as usize;
 	
 	if index == 0 {
 		index = 1;
