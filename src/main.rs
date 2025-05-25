@@ -378,7 +378,7 @@ fn definepanelicons(link: &mut [[String; 4]; 32], icons:  &mut u8) {
 }
 
 fn updatepanelindex(index: usize, panelindex: &mut [u8; 6]) {
-	//This deals with updating the indexes. It is a lot more complication due to initialization.
+	//This deals with updating the indexes. It is a lot more complicated due to initialization.
     if index == 2 {
         panelindex[1] = 1;
     }
@@ -408,13 +408,10 @@ fn updatepanelindex(index: usize, panelindex: &mut [u8; 6]) {
 
 fn shiftpanelicon(mut index: usize, panelindex: &mut [u8; 6], panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
 
-	//This function does not adjust panelindex for everything. They should be updated before calling this function.
+	//This function does not adjust panelindex. They should be updated before calling this function.
 
     //Move everything from index to the right.
-	
 
-
-	
     for i in (index..=panelindex[5] as usize).rev() {
         panelitems[i + 1] = panelitems[i];
 		panelcoordinates[i + 1][0] = panelcoordinates[i][0];
@@ -484,22 +481,38 @@ fn insertpanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u
     panelwindows[index] = [window];
 
     let tray = panelcoordinates[panelindex[5] as usize][0];
-    
-    if panelcoordinates[index][0] + 160 < tray {
-        panelcoordinates[index] = [panelcoordinates[index][0] + 3, 160];
-    } else {
+    //panelcoordinates[index] = [panelcoordinates[index][0] + 3, panelcoordinates[index][1]];
+	
+	
+	let previouswidth = if panelitems[index - 1] == [40] {
+		panelcoordinates[index - 1][1]
+	} else {
+		160
+	};
+	let currentx = panelcoordinates[index][0];
 
-        //Window buttons go into the notification area. Let's calculate a new width for them.
-        let startx = panelcoordinates[panelindex[3] as usize][0];
-        let endx = tray - 9;
-        let width = (endx - startx) / (3 + panelindex[5] as i16 - panelindex[3] as i16);
-        
-        let mut x = startx;
-        for i in panelindex[3]..panelindex[5] {
-            panelcoordinates[i as usize] = [x, width];
-            x += width + 3;
-        }
-    }
+	if currentx + previouswidth < tray {
+		panelcoordinates[index] = [currentx + 3, previouswidth];
+	} else {
+		// Window buttons go into the notification area. Let's calculate a new width for them.
+		let windowstart = panelindex[3] as usize;
+		let windowend = panelindex[5] as usize;
+		let startx = panelcoordinates[windowstart][0];
+		let endx = tray;
+		let count = (windowend - windowstart) as i16;
+		// Avoid division by zero (shouldn't happen if indices are correct)
+		if count > 0 {
+			let width = ((endx - startx) / count) - 3;
+			let mut x = startx;
+			for i in windowstart..windowend {
+				panelcoordinates[i] = [x, width];
+				x += width + 3;
+			}
+		}
+	}
+	
+	
+	
 	
 }
 
@@ -967,6 +980,9 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 		if draw == 40 {
 			//Redraw the tray windows only!
+			let tempstart = panelcoordinates[panelindex[3] as usize][0];
+			let tempwidth = panelcoordinates[panelindex[5] as usize][0] - tempstart;
+			xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: tempstart, y: 3, width: tempwidth as u16, height: panelheight }])?; //Draw panel background.
 			for i in (1..(panelindex[5] as usize)).rev() {
 				match panelitems[i][0] {
 					40 => {
@@ -1006,6 +1022,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					}
 					40 => {
 						//startx: i16, starty: i16, framewidth: i16, frameheight: i1
+						
 						drawwindowbuttons(&xconnection, panel, panelwindows[i][0], panelcoordinates[i][0], panelcoordinates[i][1], &wm, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
 
 

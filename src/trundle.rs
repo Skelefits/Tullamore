@@ -43,14 +43,20 @@ lazy_static! {
 }
 
 pub fn squishtext(text: &str, width: i16, length: i16) -> String {
-    let characters = (width / length).max(1) as usize;
-    
-    if text.len() <= characters {
-        text.to_string()
-    } else if characters > 3 {
-        format!("{}...", &text[0..(characters - 3)])
+    if width < length + 2 {
+        String::new()
     } else {
-        text[0..characters].to_string()
+        let characters = ((width - 2) / length) as usize;
+        
+        if text.len() <= characters {
+            text.to_string()
+        } else if characters > 3 {
+            format!("{}...", &text[0..(characters - 3)])
+        } else if characters > 0 {
+            text[0..characters].to_string()
+        } else {
+            String::new()
+        }
     }
 }
 
@@ -131,12 +137,12 @@ pub fn windowborder<C: Connection>(xconnection: &C, window: u32, width: i16, hei
 pub fn drawstartbutton<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
 
 	drawbumpyframe(&xconnection, window, startx, starty, framewidth, frameheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-	drawpng(&xconnection, window, "computer.png", 6, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+	drawpng(&xconnection, window, "computer.png", startx + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
 	
-	xconnection.image_text8(window, gc_lowlight, 24, 19, "S".as_bytes());
-	xconnection.image_text8(window, gc_lowlight, 24+5, 19, "t".as_bytes());
-	xconnection.image_text8(window, gc_lowlight, 24+5+5, 19, "ar".as_bytes());
-	xconnection.image_text8(window, gc_lowlight, 24+5+5+11, 19, "t".as_bytes());
+	xconnection.image_text8(window, gc_lowlight, startx+22, 19, "S".as_bytes());
+	xconnection.image_text8(window, gc_lowlight, startx+22+5, 19, "t".as_bytes());
+	xconnection.image_text8(window, gc_lowlight, startx+22+5+5, 19, "ar".as_bytes());
+	xconnection.image_text8(window, gc_lowlight, startx+22+5+5+11, 19, "t".as_bytes());
     Ok(())
 }
 

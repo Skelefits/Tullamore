@@ -160,12 +160,16 @@ pub fn drawwindowbuttons<C: Connection>(xconnection: &C, panel: Window, window_i
         let focused = state.map == 2;  //2 = focus, 3 = visible but unfocused
         if focused {
             drawdepressedbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
-            drawpng(xconnection, panel, "computer.png", x + 4, 8, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-            xconnection.image_text8(panel, gc_lowlight, x + 24, 20, squishtext(&state.title, width - 28, 6).as_bytes())?;
+			if width >= 20 {
+				drawpng(xconnection, panel, "computer.png", x + 4, 8, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+				xconnection.image_text8(panel, gc_lowlight, x + 24, 20, squishtext(&state.title, width - 28, 6).as_bytes())?;
+			}
         } else {
             drawbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-            drawpng(xconnection, panel, "computer.png", x + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-            xconnection.image_text8(panel, gc_lowlight, x + 24, 19, squishtext(&state.title, width - 28, 6).as_bytes())?;
+			if width >= 20 {
+				drawpng(xconnection, panel, "computer.png", x + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+				xconnection.image_text8(panel, gc_lowlight, x + 24, 19, squishtext(&state.title, width - 28, 6).as_bytes())?;
+			}
         }
     }
     Ok(())
