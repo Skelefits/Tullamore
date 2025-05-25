@@ -836,11 +836,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				}
 				//For moving windows around!
 				Event::MotionNotify(motion) => {
-					
-					
-					
-					
-					
+
 					//Hover over panel links.
 
 					if motion.event == panel {
@@ -850,37 +846,20 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							let windowx = panelcoordinates[panelindex[3] as usize][0];
 							if motion.event_x > linkx && motion.event_x < windowx {
 								let link = clickelement(motion.event_x - linkx, panelcoordinates[index][1]);
-								//println!("Link Hovered: {}", link);
 								//We need to draw the hover graphic if it isn't already.
 								if panelitems[(index+link as usize)][0] == 30 {
-									
 									for i in (panelindex[1] as usize..(panelindex[3] as usize)) {
 										if panelitems[i][0] == 32 {
 											panelitems[i][0] = 30;
 										}
 									}
-									
 									panelitems[(index+link as usize)][0] = 32;
-									
-									
-									
-									
-									draw = 30;
-									
-									
-									
+									draw = 32;
 								}
 							}
 						}
 					}			
 
-					
-					
-					
-					
-					
-					
-					
 					
 					//Dragging windows n stuff
 					if let (Some(win), Some((start_x, start_y)), Some((win_x, win_y))) = (moving, drag, origin) {
@@ -951,6 +930,32 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					
 					
 					if press.detail == 1 { //Left mouse button pressed.
+					
+					
+					//Panel (New)
+					if press.event == panel {
+						if press.event_y > 2 {
+							let index = panelindex[1] as usize;
+							let linkx = panelcoordinates[index][0];
+							let windowx = panelcoordinates[panelindex[3] as usize][0];
+							if press.event_x > linkx && press.event_x < windowx {
+								let link = clickelement(press.event_x - linkx, panelcoordinates[index][1]);
+								//We need to draw the hover graphic if it isn't already.
+								if panelitems[(index+link as usize)][0] == 30 {
+									for i in (panelindex[1] as usize..(panelindex[3] as usize)) {
+										if panelitems[i][0] == 31 || panelitems[i][0] == 32 {
+											panelitems[i][0] = 30;
+										}
+									}
+									panelitems[(index+link as usize)][0] = 32;
+									draw = 31;
+								}
+							}
+						}
+					}	
+					
+					
+					
 					
 						//For the outline drag only.
 						if FASTDRAG {
@@ -1040,31 +1045,43 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	if draw > 0 {
 
 		if draw == 30 {
-			
-			let tempstart = panelcoordinates[panelindex[1] as usize][0];
+			let tempstart = panelcoordinates[panelindex[1] as usize][0] - 1;
 			let tempwidth = panelcoordinates[panelindex[3] as usize][0] - tempstart;
-			
 			xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: tempstart, y: 3, width: tempwidth as u16, height: panelheight }])?;
-
 			for i in (panelindex[1] as usize..(panelindex[3] as usize)) {
 				match panelitems[i][0] {
 					30 => {
-						//startx: i16, starty: i16, framewidth: i16, frameheight: i1
 						drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
 					}
 					32 => {
-						//startx: i16, starty: i16, framewidth: i16, frameheight: i1
 						drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
 						drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_lowbackground, gc_highlight)?;
 					}
 					_ => {
 						break;
-						
 					}
 				}
 			}
-
-
+		} else if draw > 30 && draw < 35 {
+			
+			for i in (panelindex[1] as usize..(panelindex[3] as usize)) {
+				match panelitems[i][0] {
+					30 => {
+						drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_highbackground, gc_highbackground)?;
+					}
+					31 => {
+						//Press link!
+						drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_highlight, gc_lowbackground)?;
+					}
+					32 => {
+						//Hover over link!
+						drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_lowbackground, gc_highlight)?;
+					}
+					_ => {
+						break;
+					}
+				}
+			}
 		} else if draw == 40 {
 			//Redraw the tray windows only!
 			let tempstart = panelcoordinates[panelindex[3] as usize][0];
