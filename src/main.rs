@@ -610,8 +610,9 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	let panelheight = 28;
 	
 	
-	xconnection.create_window(0, panel, window, 0, height - panelheight as i16, width as u16, panelheight, 0, WindowClass::INPUT_OUTPUT, screen.root_visual, &CreateWindowAux::default(),)?;
+	xconnection.create_window(0, panel, window, 0, height - panelheight as i16, width as u16, panelheight, 0, WindowClass::INPUT_OUTPUT, screen.root_visual, &CreateWindowAux::new().event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS | EventMask::POINTER_MOTION),)?;
 	
+
 	xconnection.change_window_attributes(window, &ChangeWindowAttributesAux::default().event_mask(EventMask::BUTTON_PRESS | EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY).background_pixel(COLOURS[WALLPAPER_COLOUR]).override_redirect(1),)?;
 
     //Graphic contexts...
@@ -835,6 +836,53 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				}
 				//For moving windows around!
 				Event::MotionNotify(motion) => {
+					
+					
+					
+					
+					
+					//Hover over panel links.
+
+					if motion.event == panel {
+						if motion.event_y > 2 {
+							let index = panelindex[1] as usize;
+							let linkx = panelcoordinates[index][0];
+							let windowx = panelcoordinates[panelindex[3] as usize][0];
+							if motion.event_x > linkx && motion.event_x < windowx {
+								let link = clickelement(motion.event_x - linkx, panelcoordinates[index][1]);
+								//println!("Link Hovered: {}", link);
+								//We need to draw the hover graphic if it isn't already.
+								if panelitems[(index+link as usize)][0] == 30 {
+									
+									for i in (panelindex[1] as usize..(panelindex[3] as usize)) {
+										if panelitems[i][0] == 32 {
+											panelitems[i][0] = 30;
+										}
+									}
+									
+									panelitems[(index+link as usize)][0] = 32;
+									
+									
+									
+									
+									draw = 30;
+									
+									
+									
+								}
+							}
+						}
+					}			
+
+					
+					
+					
+					
+					
+					
+					
+					
+					//Dragging windows n stuff
 					if let (Some(win), Some((start_x, start_y)), Some((win_x, win_y))) = (moving, drag, origin) {
 						let dx = motion.root_x - start_x;
 						let dy = motion.root_y - start_y;
@@ -862,10 +910,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				}
 				
 				
-				
-				
-				
-				
+
 				//For releasing the window! Redraw the frame!
 				Event::ButtonRelease(_) => {
 					
@@ -953,17 +998,34 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					
 					
 						if press.event_y > height - 20 && press.event_y < height - 5 {
-							if press.event_x > width - panelcoordinates[panelindex[5] as usize][1] {
+							if press.event_x > panelcoordinates[panelindex[5] as usize][0] {
 								if press.event_x < width - 60 {
-									let clicked_icon = icons as i16 - 1 - (press.event_x - (width - panelcoordinates[panelindex[5] as usize][1])) / 20;
-									if clicked_icon >= 0 {
-										println!("Icon index: {}", clicked_icon + 1);
+									let clickedicon = icons as i16 - 1 - (press.event_x - (width - panelcoordinates[panelindex[5] as usize][1])) / 20;
+									if clickedicon >= 0 {
+										println!("Icon index: {}", clickedicon + 1);
 									}
 								} else {
 									println!("Clock clicked!");
 								}
 							} else {
 								println!("Middle of panel clicked!");
+								let linkx = panelcoordinates[panelindex[1] as usize][0];
+								if press.event_x > linkx {
+								
+									let windowx = panelcoordinates[panelindex[3] as usize][0];
+									if press.event_x > windowx {
+										let link = clickelement(press.event_x - windowx, panelcoordinates[panelindex[3] as usize][1]);
+										println!("Window Button Clicked: {}", link);
+									} else if press.event_x < panelcoordinates[panelindex[3] as usize][0] {
+										let link = clickelement(press.event_x - linkx, panelcoordinates[panelindex[1] as usize][1]);
+										println!("Link Clicked: {}", link);
+									}
+									
+									
+									
+									
+								
+								}
 							}
 						} else {
 							println!("Mouse button pressed at ({}, {}) with button: {}", press.event_x, press.event_y, press.detail);
@@ -977,8 +1039,33 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 			
 	if draw > 0 {
 
+		if draw == 30 {
+			
+			let tempstart = panelcoordinates[panelindex[1] as usize][0];
+			let tempwidth = panelcoordinates[panelindex[3] as usize][0] - tempstart;
+			
+			xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: tempstart, y: 3, width: tempwidth as u16, height: panelheight }])?;
 
-		if draw == 40 {
+			for i in (panelindex[1] as usize..(panelindex[3] as usize)) {
+				match panelitems[i][0] {
+					30 => {
+						//startx: i16, starty: i16, framewidth: i16, frameheight: i1
+						drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+					}
+					32 => {
+						//startx: i16, starty: i16, framewidth: i16, frameheight: i1
+						drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+						drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_lowbackground, gc_highlight)?;
+					}
+					_ => {
+						break;
+						
+					}
+				}
+			}
+
+
+		} else if draw == 40 {
 			//Redraw the tray windows only!
 			let tempstart = panelcoordinates[panelindex[3] as usize][0];
 			let tempwidth = panelcoordinates[panelindex[5] as usize][0] - tempstart;
@@ -987,6 +1074,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				match panelitems[i][0] {
 					40 => {
 						//startx: i16, starty: i16, framewidth: i16, frameheight: i1
+						
 						drawwindowbuttons(&xconnection, panel, panelwindows[i][0], panelcoordinates[i][0], panelcoordinates[i][1], &wm, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
 					}
 					_ => {
@@ -1078,4 +1166,16 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 		xconnection.flush()?;
     }
     println!("wat?");
+}
+
+fn clickelement(offsetx: i16, elementwidth: i16) -> u8 {
+    if offsetx < 0 {
+        return 255;
+    }
+    let element = offsetx / (elementwidth + 1);
+    if element >= 0 {
+        element as u8
+    } else {
+        255
+    }
 }
