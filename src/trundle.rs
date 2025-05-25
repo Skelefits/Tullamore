@@ -205,7 +205,20 @@ pub fn drawdepressedframe<C: Connection>(xconnection: &C, window: u32, startx: i
 pub fn drawpng<C: Connection>(xconnection: &C, window: u32, filename: &str, x: i16, y: i16, height: u16, width: u16, colour: Option<u32>) -> Result<(), Box<dyn Error>> {
 	//I only want to support one image type. I didn't want to use png, but all icon packs use png so it'll probably stay.
 	//Vector would be fun, but probably too resource intensive.
-    let file = File::open(filename)?;
+
+    let file = match File::open(filename) {
+        Ok(f) => f,
+        Err(e) => {
+			//Colour square if we can't load the png.
+            eprintln!("Warning: Could not load image '{}': {}", filename, e);
+            let gc = xconnection.generate_id()?;
+            xconnection.create_gc(gc, window, &CreateGCAux::default().background(colour))?;
+            xconnection.poly_fill_rectangle(window, gc, &[Rectangle {x, y, width, height}])?;
+            xconnection.free_gc(gc)?;
+            return Ok(());
+        }
+    };
+	
     let decoder = Decoder::new(BufReader::new(file));
     let mut reader = decoder.read_info()?;
 
