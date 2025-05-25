@@ -6,3 +6,5 @@ It is hopped that Tullamore will become the default DE for projects where you ar
 External libraries are to be kept to an absolute minium. Where a particular tool needs a large library, that tool is to be spun out into its own binary.
 
 ![Tullamore Screenshot](screenshots/2025-05-25.png)
+
+![Tullamore Screenshot](screenshots/Pink.png)
