@@ -590,10 +590,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
 	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
 	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
-	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
-	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
-	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
-	
+
 	
 	
 	
@@ -610,7 +607,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	let panelheight = 28;
 	
 	
-	xconnection.create_window(0, panel, window, 0, height - panelheight as i16, width as u16, panelheight, 0, WindowClass::INPUT_OUTPUT, screen.root_visual, &CreateWindowAux::new().event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS | EventMask::POINTER_MOTION),)?;
+	xconnection.create_window(0, panel, window, 0, height - panelheight as i16, width as u16, panelheight, 0, WindowClass::INPUT_OUTPUT, screen.root_visual, &CreateWindowAux::new().event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS | EventMask::BUTTON_RELEASE | EventMask::POINTER_MOTION),)?;
 	
 
 	xconnection.change_window_attributes(window, &ChangeWindowAttributesAux::default().event_mask(EventMask::BUTTON_PRESS | EventMask::SUBSTRUCTURE_REDIRECT | EventMask::SUBSTRUCTURE_NOTIFY).background_pixel(COLOURS[WALLPAPER_COLOUR]).override_redirect(1),)?;
@@ -651,18 +648,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 	//test windows
 	
-	let test1 = createwindow(&xconnection, &screen, 100, 100, 200, 100, b"test1", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
-	
-	let test2 = createwindow(&xconnection, &screen, 100, 100, 300, 200, b"test2", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
-	
-	let test3 = createwindow(&xconnection, &screen, 100, 100, 100, 100, b"test3", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 
-	println!("test1 {} test2 {} test3 {}", test1, test2, test3);
-
-
-	insertpanelwindow(&mut panelindex, test1, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-	insertpanelwindow(&mut panelindex, test2, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-	insertpanelwindow(&mut panelindex, test3, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
 
 
 	wm.fillblanks();
@@ -736,8 +722,11 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 
 
-	let mut draw = 1;
+	let mut draw = 1 as u8;
 
+
+
+	let mut elementreset = 255 as u8; //
 
 
 
@@ -834,31 +823,42 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				Event::DestroyNotify(destroy) => {
 
 				}
+				
+
+				
+				
 				//For moving windows around!
 				Event::MotionNotify(motion) => {
 
 					//Hover over panel links.
 
+
+
+
 					if motion.event == panel {
-						if motion.event_y > 2 {
-							let index = panelindex[1] as usize;
-							let linkx = panelcoordinates[index][0];
-							let windowx = panelcoordinates[panelindex[3] as usize][0];
-							if motion.event_x > linkx && motion.event_x < windowx {
-								let link = clickelement(motion.event_x - linkx, panelcoordinates[index][1]);
-								//We need to draw the hover graphic if it isn't already.
-								if panelitems[(index+link as usize)][0] == 30 {
-									for i in (panelindex[1] as usize..(panelindex[3] as usize)) {
-										if panelitems[i][0] == 32 {
-											panelitems[i][0] = 30;
-										}
-									}
-									panelitems[(index+link as usize)][0] = 32;
-									draw = 32;
+						if let Some((index, elementtype)) = checkelement(motion.event_x, motion.event_y, &panelindex, &panelcoordinates) {
+							if elementtype == 30 {
+								//Hovering over a link!
+								if let Some(state) = updateelement(index, 32, &mut panelitems, &panelindex) {
+									draw = state;
+									elementreset = index as u8;
 								}
 							}
+
+						
+						} else {
+							if elementreset < 255 {	
+								if panelindex[1] <= elementreset && elementreset <= panelindex[2] {
+									panelitems[elementreset as usize][0] = 30;
+									draw = 32;
+									elementreset = 255;	
+								}
+							}
+							
 						}
-					}			
+					}
+
+	
 
 					
 					//Dragging windows n stuff
@@ -891,36 +891,69 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				
 
 				//For releasing the window! Redraw the frame!
-				Event::ButtonRelease(_) => {
-					
+				Event::ButtonRelease(release) => {
+
 					if FASTDRAG {
 						//Draw XOR Outline to overwrite old one.
 						if let Some((lx, ly, lw, lh)) = xordrawn { drawchunkyxoroutline(&xconnection, screen.root, gc_xorcheckers, lx, ly, lw, lh)?; xordrawn = None; }
 					}
-					//Move window.
-					if let Some(target) = moving {
-						if let (Some((finalx, finaly)), Some((targetx, targety))) = (drag, origin) {
-							let pointer = xconnection.query_pointer(screen.root)?.reply()?;
-							let newx = targetx + (pointer.root_x - finalx);
-							let newy = targety + (pointer.root_y - finaly);
-							
-							//Update xy on X server.
-							xconnection.configure_window(target, &ConfigureWindowAux::new().x(newx as i32).y(newy as i32))?;
-							
-							//Update wm!
-							if let Some(state) = wm.windows.values_mut().find(|s| s.frame == target) {
-								state.x = newx;
-								state.y = newy;
+					
+
+					
+				//Releasing the mouse click.
+					if release.event == panel {
+						if let Some((index, elementtype)) = checkelement(release.event_x, release.event_y, &panelindex, &panelcoordinates) {
+							if elementtype == 30 {
+								//Link released! Open link item.
+								if let Some(state) = updateelement(index, 30, &mut panelitems, &panelindex) {
+									draw = state;
+									if index > 0 {
+										if index == 1 {
+											let test1 = createwindow(&xconnection, &screen, 100, 100, 200, 100, b"test1", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
+											insertpanelwindow(&mut panelindex, test1, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+										} else if index == 2 {
+											let test2 = createwindow(&xconnection, &screen, 100, 100, 300, 200, b"test2", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
+											insertpanelwindow(&mut panelindex, test2, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+										} else if index == 3 {
+											let test3 = createwindow(&xconnection, &screen, 100, 100, 100, 100, b"test3", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
+											insertpanelwindow(&mut panelindex, test3, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+										}
+										redrawframes(&xconnection, &wm, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+									}
+									//Run the command for that link!
+								}
 							}
 						}
+					} else {
+					
+					
+						
+						//Move window.
+						if let Some(target) = moving {
+							if let (Some((finalx, finaly)), Some((targetx, targety))) = (drag, origin) {
+								let pointer = xconnection.query_pointer(screen.root)?.reply()?;
+								let newx = targetx + (pointer.root_x - finalx);
+								let newy = targety + (pointer.root_y - finaly);
+								
+								//Update xy on X server.
+								xconnection.configure_window(target, &ConfigureWindowAux::new().x(newx as i32).y(newy as i32))?;
+								
+								//Update wm!
+								if let Some(state) = wm.windows.values_mut().find(|s| s.frame == target) {
+									state.x = newx;
+									state.y = newy;
+								}
+							}
+						}
+
+						moving = None;
+						drag = None;
+						origin = None;
+
+						//Redraw window frames.
+						redrawframes(&xconnection, &wm, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+
 					}
-
-					moving = None;
-					drag = None;
-					origin = None;
-
-					//Redraw window frames.
-					redrawframes(&xconnection, &wm, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 
 					xconnection.flush()?;
 				}
@@ -934,24 +967,19 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					
 					//Panel (New)
 					if press.event == panel {
-						if press.event_y > 2 {
-							let index = panelindex[1] as usize;
-							let linkx = panelcoordinates[index][0];
-							let windowx = panelcoordinates[panelindex[3] as usize][0];
-							if press.event_x > linkx && press.event_x < windowx {
-								let link = clickelement(press.event_x - linkx, panelcoordinates[index][1]);
-								//We need to draw the hover graphic if it isn't already.
-								if panelitems[(index+link as usize)][0] == 30 {
-									for i in (panelindex[1] as usize..(panelindex[3] as usize)) {
-										if panelitems[i][0] == 31 || panelitems[i][0] == 32 {
-											panelitems[i][0] = 30;
-										}
-									}
-									panelitems[(index+link as usize)][0] = 32;
-									draw = 31;
+						
+						
+
+						if let Some((index, elementtype)) = checkelement(press.event_x, press.event_y, &panelindex, &panelcoordinates) {
+							if elementtype == 30 {
+								if let Some(state) = updateelement(index, 31, &mut panelitems, &panelindex) {
+									draw = state;
+									println!("Button pressed!");
 								}
 							}
 						}
+
+					
 					}	
 					
 					
@@ -1048,7 +1076,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 			let tempstart = panelcoordinates[panelindex[1] as usize][0] - 1;
 			let tempwidth = panelcoordinates[panelindex[3] as usize][0] - tempstart;
 			xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: tempstart, y: 3, width: tempwidth as u16, height: panelheight }])?;
-			for i in (panelindex[1] as usize..(panelindex[3] as usize)) {
+			for i in panelindex[1] as usize..panelindex[3] as usize {
 				match panelitems[i][0] {
 					30 => {
 						drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
@@ -1063,8 +1091,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				}
 			}
 		} else if draw > 30 && draw < 35 {
-			
-			for i in (panelindex[1] as usize..(panelindex[3] as usize)) {
+			for i in (panelindex[1] as usize..(panelindex[5] as usize)) {
 				match panelitems[i][0] {
 					30 => {
 						drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_highbackground, gc_highbackground)?;
@@ -1195,4 +1222,68 @@ fn clickelement(offsetx: i16, elementwidth: i16) -> u8 {
     } else {
         255
     }
+}
+
+fn checkelement(eventx: i16, eventy: i16, panelindex: &[u8; 6], panelcoordinates: &[[i16; 2]; 128]) -> Option<(usize, u8)> {
+    if eventy <= 2 {
+        return None;
+    }
+
+    let index = panelindex[1] as usize;
+    let linkx = panelcoordinates[index][0];
+    let windowx = panelcoordinates[panelindex[3] as usize][0];
+    let notificationx = panelcoordinates[panelindex[5] as usize][0];
+
+    // Check for link buttons (between linkx and windowx)
+    if eventx > linkx && eventx < windowx {
+        let link = clickelement(eventx - linkx, panelcoordinates[index][1]);
+        return Some((index + link as usize, 30));  // 30 for links
+    }
+
+    // Check for window buttons (between windowx and notificationx)
+    if eventx > windowx && eventx < notificationx {
+        let index = panelindex[3] as usize;
+        let window = clickelement(eventx - windowx, panelcoordinates[index][1]);
+        return Some((index + window as usize, 40));  // 40 for window buttons
+    }
+
+    None
+}
+
+fn updateelement(target: usize, new: u8, panelitems: &mut [[u8; 1]; 128], panelindex: &[u8; 6]) -> Option<u8> {
+    //let target = index + link as usize;
+    let state = panelitems[target][0];
+
+    if state == new {
+        return None;
+    }
+
+	let start = panelindex[1] as usize;
+	let end = panelindex[3] as usize;
+
+    if new == 30 {
+        if state > 30 {
+            for i in start..end {
+                let s = panelitems[i][0];
+                if s > 30 {
+                    panelitems[i][0] = 30;
+                }
+            }
+        }
+        panelitems[target][0] = 30;
+        return Some(30);
+    }
+
+    if (new == 31 && state >= 30) || (new == 32 && state == 30) {
+        for i in start..end {
+            let s = panelitems[i][0];
+            if s > 30 {
+                panelitems[i][0] = 30;
+            }
+        }
+        panelitems[target][0] = new;
+        return Some(new);
+    }
+
+    None
 }
