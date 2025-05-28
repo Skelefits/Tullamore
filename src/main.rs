@@ -295,16 +295,21 @@ fn createwindow<C: Connection>(xconnection: &C, screen: &Screen, x: i16, y: i16,
 
 fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], width: i16, icons: u8, panelindex: &mut [u8; 6]) {
     //Type and Actions
-	// 1 = Start Button Ready
-	// 2 = Start Button Pressed
+	// 0 = Start Button Ready
+	// 1 = Start Button Pressed
+	// 2 = Start Button Hover
+	// 3 = Start Button Engaged
 	//10 = Task List
 	//20 = Quick Laucher
 	//30 = Icon Link
 	//31 = Icon Link Pressed
 	//32 = Icon Link Hover
+	//33 = Icon Link Engaged (Not Used)
 	
 	//40 = Taskbar Button Ready
 	//41 = Taskbar Button Pressed
+	//42 = Taskbar Button Hover (Not Used)
+	//43 = Taskbar Button Engaged
 	//50 = Taskbar Button Arrows
 	//60 = Notification Area
 	
@@ -590,6 +595,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
 	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
 	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
+	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
 
 	
 	
@@ -839,23 +845,30 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						if let Some((index, elementtype)) = checkelement(motion.event_x, motion.event_y, &panelindex, &panelcoordinates) {
 							if elementtype == 30 {
 								//Hovering over a link!
-								if let Some(state) = updateelement(index, 32, &mut panelitems, &panelindex) {
+								if let Some(state) = updateelement(index, elementtype, 2, &mut panelitems, &panelindex) {
 									draw = state;
 									elementreset = index as u8;
+									//println!("elementreset {}", elementreset);
+									//println!("draw {}", draw);
+								}
+							} else if elementreset < 255 {
+								if panelindex[1] <= elementreset && elementreset <= panelindex[2] {
+									panelitems[elementreset as usize][0] = 34;
+									draw = 34;
+									elementreset = 255;	
 								}
 							}
 
 						
-						} else {
-							if elementreset < 255 {	
-								if panelindex[1] <= elementreset && elementreset <= panelindex[2] {
-									panelitems[elementreset as usize][0] = 30;
-									draw = 32;
-									elementreset = 255;	
-								}
+						} else if elementreset < 255 {
+							//Keeping duplicate code as performance is probably better.
+							if panelindex[1] <= elementreset && elementreset <= panelindex[2] {
+								panelitems[elementreset as usize][0] = 34;
+								draw = 34;
+								elementreset = 255;	
 							}
-							
 						}
+
 					}
 
 	
@@ -905,7 +918,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						if let Some((index, elementtype)) = checkelement(release.event_x, release.event_y, &panelindex, &panelcoordinates) {
 							if elementtype == 30 {
 								//Link released! Open link item.
-								if let Some(state) = updateelement(index, 30, &mut panelitems, &panelindex) {
+								if let Some(state) = updateelement(index, elementtype, 0, &mut panelitems, &panelindex) {
 									draw = state;
 									if index > 0 {
 										if index == 1 {
@@ -921,6 +934,20 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 										redrawframes(&xconnection, &wm, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 									}
 									//Run the command for that link!
+								}
+							} else if elementtype == 40 {
+								//Focus the selected window.
+								let client = panelwindows[index][0] as Window;
+								if let Some(state) = wm.getwindow(&client) {
+									let frame = state.frame;
+									wm.focus(&xconnection, frame, panel)?;
+									let redraw: Vec<(Window, Window, i16, i16)> = wm.windows.values().filter(|state| state.map == 2 || state.map == 3).map(|state| {let fwidth = state.width + (2 * border as i16); let fheight = state.height + (2 * border as i16) + (titlebar as i16); (state.frame, state.window, fwidth, fheight)}).collect();
+									for (frame, client, width, height) in redraw {
+										if frame != panel {
+											updateborder(&xconnection, frame, client, width, height, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+										}
+									}
+									draw = elementtype;
 								}
 							}
 						}
@@ -971,11 +998,17 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						
 
 						if let Some((index, elementtype)) = checkelement(press.event_x, press.event_y, &panelindex, &panelcoordinates) {
+						println!("elementtype: {}", elementtype);
 							if elementtype == 30 {
-								if let Some(state) = updateelement(index, 31, &mut panelitems, &panelindex) {
+								if let Some(state) = updateelement(index, elementtype, 1, &mut panelitems, &panelindex) {
 									draw = state;
 									println!("Button pressed!");
 								}
+							} else if elementtype == 40 {
+								//if let Some(state) = updateelement(index, elementtype, 1, &mut panelitems, &panelindex) {
+								//	draw = state;
+								//	println!("Task button pressed!");
+								//}
 							}
 						}
 
@@ -1091,21 +1124,25 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				}
 			}
 		} else if draw > 30 && draw < 35 {
-			for i in (panelindex[1] as usize..(panelindex[5] as usize)) {
+			//println!("draw function > 30 < 35 entered {}", draw);
+			for i in (panelindex[1] as usize..=(panelindex[2] as usize)) {
+				//println!("i {} in panelindex[1] {} and panelindex[2] {} panelitems[i][0] {}", i, panelindex[1], panelindex[2], panelitems[i][0]);
 				match panelitems[i][0] {
-					30 => {
+					34 => {
 						drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_highbackground, gc_highbackground)?;
+						panelitems[i][0] = 30;
 					}
 					31 => {
 						//Press link!
 						drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_highlight, gc_lowbackground)?;
 					}
 					32 => {
+						//println!("Hover over link! {}", draw);
 						//Hover over link!
 						drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_lowbackground, gc_highlight)?;
 					}
 					_ => {
-						break;
+
 					}
 				}
 			}
@@ -1118,7 +1155,6 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				match panelitems[i][0] {
 					40 => {
 						//startx: i16, starty: i16, framewidth: i16, frameheight: i1
-						
 						drawwindowbuttons(&xconnection, panel, panelwindows[i][0], panelcoordinates[i][0], panelcoordinates[i][1], &wm, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
 					}
 					_ => {
@@ -1156,7 +1192,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						//startx: i16, starty: i16, framewidth: i16, frameheight: i1
 						
 						drawwindowbuttons(&xconnection, panel, panelwindows[i][0], panelcoordinates[i][0], panelcoordinates[i][1], &wm, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
-
+						
 
 						
 					}
@@ -1230,15 +1266,20 @@ fn checkelement(eventx: i16, eventy: i16, panelindex: &[u8; 6], panelcoordinates
     }
 
     let index = panelindex[1] as usize;
-    let linkx = panelcoordinates[index][0];
-    let windowx = panelcoordinates[panelindex[3] as usize][0];
-    let notificationx = panelcoordinates[panelindex[5] as usize][0];
+    let linkstart = panelcoordinates[index][0];
+	let linkend = panelcoordinates[panelindex[2] as usize][0] + panelcoordinates[panelindex[2] as usize][1];
 
     // Check for link buttons (between linkx and windowx)
-    if eventx > linkx && eventx < windowx {
-        let link = clickelement(eventx - linkx, panelcoordinates[index][1]);
+	
+	//println!("eventx {} > linkstart {} && eventx {} <= linkend {}", eventx, linkstart, eventx, linkend);
+	
+    if eventx > linkstart && eventx <= linkend {
+        let link = clickelement(eventx - linkstart, panelcoordinates[index][1]);
         return Some((index + link as usize, 30));  // 30 for links
     }
+
+    let windowx = panelcoordinates[panelindex[3] as usize][0];
+    let notificationx = panelcoordinates[panelindex[5] as usize][0];
 
     // Check for window buttons (between windowx and notificationx)
     if eventx > windowx && eventx < notificationx {
@@ -1250,39 +1291,48 @@ fn checkelement(eventx: i16, eventy: i16, panelindex: &[u8; 6], panelcoordinates
     None
 }
 
-fn updateelement(target: usize, new: u8, panelitems: &mut [[u8; 1]; 128], panelindex: &[u8; 6]) -> Option<u8> {
+fn updateelement(target: usize, elementtype: u8, new: u8, panelitems: &mut [[u8; 1]; 128], panelindex: &[u8; 6]) -> Option<u8> {
     //let target = index + link as usize;
-    let state = panelitems[target][0];
+	
+    let state = panelitems[target][0] % 10;
+
+	//println!("updateelement state {} new {}", state, new);
 
     if state == new {
         return None;
     }
 
-	let start = panelindex[1] as usize;
-	let end = panelindex[3] as usize;
+	let (start, end) = if elementtype == 30 { (panelindex[1] as usize, panelindex[2] as usize) } else if elementtype == 40 { (panelindex[3] as usize, panelindex[4] as usize) } else { (0, 0) };
 
-    if new == 30 {
-        if state > 30 {
-            for i in start..end {
+
+    if new == 0 {
+		//Is this still used???
+        if state > 0 {
+            for i in start..=end {
                 let s = panelitems[i][0];
-                if s > 30 {
-                    panelitems[i][0] = 30;
+				//println!("Loop 1 s {}", s);
+                if s > elementtype {
+                    panelitems[i][0] = elementtype;
                 }
             }
         }
-        panelitems[target][0] = 30;
-        return Some(30);
+        panelitems[target][0] = elementtype;
+        return Some(elementtype);
     }
 
-    if (new == 31 && state >= 30) || (new == 32 && state == 30) {
-        for i in start..end {
+    if (new == 1 && state >= 0) || (new == 2 && state == 0) {
+        for i in start..=end {
             let s = panelitems[i][0];
-            if s > 30 {
-                panelitems[i][0] = 30;
+			
+            if s > elementtype {
+                panelitems[i][0] = elementtype + 4;
             }
+			//println!("Loop 2's {} s {} to {}", i, s, panelitems[i][0]);
         }
-        panelitems[target][0] = new;
-        return Some(new);
+		let exit = elementtype + new;
+        panelitems[target][0] = exit;
+		//println!("Loop 2's Final: {} s {}", target, exit);
+        return Some(exit);
     }
 
     None
