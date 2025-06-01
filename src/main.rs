@@ -930,17 +930,10 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							} else if elementtype == 40 {
 								//Focus the selected window.
 								let client = panelwindows[index][0] as Window;
-								if let Some(state) = wm.getwindow(&client) {
-									let frame = state.frame;
-									wm.focus(&xconnection, frame, panel)?;
-									let redraw: Vec<(Window, Window, i16, i16)> = wm.windows.values().filter(|state| state.map == 2 || state.map == 3).map(|state| {let fwidth = state.width + (2 * border as i16); let fheight = state.height + (2 * border as i16) + (titlebar as i16); (state.frame, state.window, fwidth, fheight)}).collect();
-									for (frame, client, width, height) in redraw {
-										if frame != panel {
-											updateborder(&xconnection, frame, client, width, height, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
-										}
-									}
-									draw = elementtype;
-								}
+								if let Some(state) = wm.getwindow(&client) { focuswindow(&mut wm, &xconnection, panel, client, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?; draw = elementtype; }
+
+
+
 							}
 						}
 					} else {
@@ -975,6 +968,19 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 																println!("Window.Map {} {}", window.map, checkindex);
 																if window.map == 3 {
 																	window.map = 2;
+																	
+																	
+																	let focusclient = panelwindows[checkindex as usize][0] as Window;
+																	if let Some(state) = wm.getwindow(&focusclient) {
+																		let focusframe = state.frame;
+																		xconnection.map_window(focusclient)?;  //Show window!
+																		xconnection.map_window(focusframe)?;  //Show frame!
+																		wm.focus(&xconnection, focusframe, panel)?;
+																	}
+																	
+																	
+																	
+																	
 																	break;
 																}
 															}
@@ -987,6 +993,16 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 															println!("Window.Map {} {}", window.map, checkindex);
 															if window.map == 3 {
 																window.map = 2;
+																
+																let focusclient = panelwindows[checkindex as usize][0] as Window;
+																if let Some(state) = wm.getwindow(&focusclient) {
+																	let focusframe = state.frame;
+																	xconnection.map_window(focusclient)?;  //Show window!
+																	xconnection.map_window(focusframe)?;  //Show frame!
+																	wm.focus(&xconnection, focusframe, panel)?;
+																}
+																
+																
 																break;
 															}
 														}
@@ -1385,4 +1401,15 @@ fn updateelement(target: usize, elementtype: u8, new: u8, panelitems: &mut [[u8;
     }
 
     None
+}
+
+fn focuswindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Window, client: Window, border: u16, titlebar: u16, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext) -> Result<(), Box<dyn Error>> {
+    if let Some(state) = wm.getwindow(&client) {
+        let frame = state.frame;
+        if state.map == 0 { xconnection.map_window(client)?; xconnection.map_window(frame)?; }
+        wm.focus(&xconnection, frame, panel)?;
+        let redraw: Vec<(Window, Window, i16, i16)> = wm.windows.values().filter(|state| state.map == 2 || state.map == 3).map(|state| {let fwidth = state.width + (2 * border as i16); let fheight = state.height + (2 * border as i16) + (titlebar as i16); (state.frame, state.window, fwidth, fheight)}).collect();
+        for (frame, client, width, height) in redraw { if frame != panel { updateborder(&xconnection, frame, client, width, height, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?; } }
+    }
+    Ok(())
 }
