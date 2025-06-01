@@ -91,7 +91,7 @@ pub fn drawtitlebar<C: Connection>(xconnection: &C, window: u32, width: i16, hei
 	drawbumpyframe(&xconnection, window, width - 14, 6, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
 	drawbumpyframe(&xconnection, window, width - 30, 6, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
 	drawbumpyframe(&xconnection, window, width - 46, 6, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-	println!("{}", width - 14);
+	//println!("{}", width - 14);
 	
     Ok(())
 }
@@ -277,7 +277,8 @@ pub fn drawpng<C: Connection>(xconnection: &C, window: u32, filename: &str, x: i
         }
     } else {
         //format not found
-        println!("Unsupported: {:?}", info.color_type);
+        
+		println!("Unsupported: {:?}", info.color_type);
         return Ok(());
     }
 
@@ -328,7 +329,7 @@ pub fn drawclock<C: Connection>(xconnection: &C, window: u32, gc_lowlight: u32, 
     //Hours!
     xconnection.image_text8(window, gc_lowlight, width - 55, clockheight, thour.as_bytes())?;
     
-    println!("{}:{}", phour, pminute);
+    //println!("{}:{}", phour, pminute);
 
 	(phour, pminute) = updateclock(&xconnection, window, gc_lowlight, phour, 255, pminute, width, clockheight)?;
     

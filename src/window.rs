@@ -44,7 +44,7 @@ use crate::trundle::{
 pub fn redrawframes<C: Connection>(xconnection: &C, wm: &WindowManager, panel: Window, titlebar: u16, border: u16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_titlebar: u32, gc_titlebartext: u32) -> Result<(), Box<dyn Error>> {
     for state in wm.windows.values() {
         if state.frame != panel {
-			println!("[{}] Frame Details - Window: {:?}, Frame: {:?}, Title: '{}', Original Size: {}x{}, Border: {}, Titlebar: {}, Final Size: {}x{}", "Skelefits", state.window, state.frame, state.title, state.width, state.height, border, titlebar, state.width + (2 * border as i16), state.height + ((2 * border as i16) + titlebar as i16));
+			//println!("[{}] Frame Details - Window: {:?}, Frame: {:?}, Title: '{}', Original Size: {}x{}, Border: {}, Titlebar: {}, Final Size: {}x{}", "Skelefits", state.window, state.frame, state.title, state.width, state.height, border, titlebar, state.width + (2 * border as i16), state.height + ((2 * border as i16) + titlebar as i16));
             updateborder(xconnection, state.frame, state.window, state.width + (2 * border as i16), state.height + ((2 * border as i16) + titlebar as i16), titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext )?;
         }
     }
@@ -109,7 +109,7 @@ pub fn updateborder<C: x11rb::connection::Connection>(xconnection: &C, frame: u3
     let root = xconnection.setup().roots[0].root;
     let focused = if let Ok(root_tree) = xconnection.query_tree(root)?.reply() { root_tree.children.iter().rev().nth(1).map_or(false, |&w| w == frame) } else { false };
 
-	println!("{}x{}", width, height);
+	//println!("{}x{}", width, height);
     windowborder(xconnection, frame, width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
     let gc = if focused { gc_titlebar } else { gc_lowbackground };
     drawtitlebar(xconnection, frame, width - TITLE_INSET, titlebar as i16, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc)?;

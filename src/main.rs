@@ -305,11 +305,13 @@ fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i1
 	//31 = Icon Link Pressed
 	//32 = Icon Link Hover
 	//33 = Icon Link Engaged (Not Used)
+	//34 = Icon Link Reset??????
 	
 	//40 = Taskbar Button Ready
 	//41 = Taskbar Button Pressed
 	//42 = Taskbar Button Hover (Not Used)
 	//43 = Taskbar Button Engaged
+	//44 = Taskbar Reset??????? No????
 	//50 = Taskbar Button Arrows
 	//60 = Notification Area
 	
@@ -352,7 +354,7 @@ fn definepanelitems(panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i1
 	
 
 
-	println!("Width ({}) Coordinates ({}) Notification ({}) Icons ({})", width, width - notification - 3, notification, icons);
+	//println!("Width ({}) Coordinates ({}) Notification ({}) Icons ({})", width, width - notification - 3, notification, icons);
 
 	panelitems[panelindex[5] as usize] = [60]; //Notification Area
 	panelcoordinates[panelindex[5] as usize] = [width - notification - 3, notification];
@@ -407,8 +409,7 @@ fn updatepanelindex(index: usize, panelindex: &mut [u8; 6]) {
         _ => {}
     }
 
-    println!("panelindex contents: [0]={}, [1]={}, [2]={}, [3]={}, [4]={}, [5]={}", 
-        panelindex[0], panelindex[1], panelindex[2], panelindex[3], panelindex[4], panelindex[5]);
+   // println!("panelindex contents: [0]={}, [1]={}, [2]={}, [3]={}, [4]={}, [5]={}", panelindex[0], panelindex[1], panelindex[2], panelindex[3], panelindex[4], panelindex[5]);
 }
 
 fn shiftpanelicon(mut index: usize, panelindex: &mut [u8; 6], panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
@@ -836,12 +837,9 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				//For moving windows around!
 				Event::MotionNotify(motion) => {
 
-					//Hover over panel links.
-
-
-
-
+					
 					if motion.event == panel {
+						//Hover over panel links.
 						if let Some((index, elementtype)) = checkelement(motion.event_x, motion.event_y, &panelindex, &panelcoordinates) {
 							if elementtype == 30 {
 								//Hovering over a link!
@@ -858,8 +856,6 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 									elementreset = 255;	
 								}
 							}
-
-						
 						} else if elementreset < 255 {
 							//Keeping duplicate code as performance is probably better.
 							if panelindex[1] <= elementreset && elementreset <= panelindex[2] {
@@ -868,36 +864,32 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 								elementreset = 255;	
 							}
 						}
-
-					}
-
-	
-
-					
-					//Dragging windows n stuff
-					if let (Some(win), Some((start_x, start_y)), Some((win_x, win_y))) = (moving, drag, origin) {
-						let dx = motion.root_x - start_x;
-						let dy = motion.root_y - start_y;
-						let new_x = win_x + dx;
-						let new_y = win_y + dy;
-
-					if FASTDRAG {
-						if let Some((lx, ly, lw, lh)) = xordrawn {
-							//Draw XOR Outline to overwrite previous one.
-							drawchunkyxoroutline(&xconnection, screen.root, gc_xorcheckers, lx, ly, lw, lh)?;
-						}
-
-						//Draw outline.
-						if let Ok(geom) = xconnection.get_geometry(win)?.reply() {
-							drawchunkyxoroutline(&xconnection, screen.root, gc_xorcheckers, new_x, new_y, geom.width, geom.height, )?;
-							xordrawn = Some((new_x, new_y, geom.width, geom.height));
-						}
 					} else {
-						xconnection.configure_window(
-							win,
-							&ConfigureWindowAux::new().x(new_x as i32).y(new_y as i32),
-						)?;
-					}
+						//Dragging windows n stuff
+						if let (Some(win), Some((startx, starty)), Some((winx, winy))) = (moving, drag, origin) {
+							let dx = motion.root_x - startx;
+							let dy = motion.root_y - starty;
+							let newx = winx + dx;
+							let newy = winy + dy;
+
+							if FASTDRAG {
+								if let Some((lx, ly, lw, lh)) = xordrawn {
+									//Draw XOR Outline to overwrite previous one.
+									drawchunkyxoroutline(&xconnection, screen.root, gc_xorcheckers, lx, ly, lw, lh)?;
+								}
+
+								//Draw outline.
+								if let Ok(geom) = xconnection.get_geometry(win)?.reply() {
+									drawchunkyxoroutline(&xconnection, screen.root, gc_xorcheckers, newx, newy, geom.width, geom.height, )?;
+									xordrawn = Some((newx, newy, geom.width, geom.height));
+								}
+							} else {
+								xconnection.configure_window(
+									win,
+									&ConfigureWindowAux::new().x(newx as i32).y(newy as i32),
+								)?;
+							}
+						}
 					}
 				}
 				
@@ -954,9 +946,66 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					} else {
 					
 					
-						
-						//Move window.
+						if let Some(state) = wm.getframe(&release.event) {
+							//Press buttons on Window Frame.
+							let x = release.event_x;
+							let y = release.event_y;
+							
+
+
+							if y >= 7 && y <= 21 {
+								let right_edge = state.width + (2 * border as i16);
+								if x >= right_edge - 54 && x < right_edge - 38 {
+									if let Some(client) = wm.frames.get(&release.event) {
+										if let Some(index) = panelwindows.iter().position(|w| w[0] == *client) {
+											if let Some(target) = wm.windows.get_mut(client) {
+												target.map = 0;
+												println!("Window.Map {} {}", target.map, index);
+												xconnection.unmap_window(release.event)?;
+												xconnection.unmap_window(*client)?;
+												
+												panelitems[index][0] = 40;
+
+												let loopindex = index as u8;
+												for i in 1..=5 {  //Check left and right five windows for one we can focus on.
+													//Left side!
+													if let Some(checkindex) = loopindex.checked_sub(i) {
+														if checkindex >= 0 && (checkindex as usize) < panelwindows.len() {
+															if let Some(window) = wm.windows.get_mut(&panelwindows[checkindex as usize][0]) {
+																println!("Window.Map {} {}", window.map, checkindex);
+																if window.map == 3 {
+																	window.map = 2;
+																	break;
+																}
+															}
+														}
+													}
+													//Right side!
+													let checkindex = loopindex + i;
+													if (checkindex as usize) < panelwindows.len() {
+														if let Some(window) = wm.windows.get_mut(&panelwindows[checkindex as usize][0]) {
+															println!("Window.Map {} {}", window.map, checkindex);
+															if window.map == 3 {
+																window.map = 2;
+																break;
+															}
+														}
+													}
+												}
+												draw = 40;
+											}
+										}
+									}
+								}
+							}
+
+
+
+
+
+						}
 						if let Some(target) = moving {
+							//Move window.
 							if let (Some((finalx, finaly)), Some((targetx, targety))) = (drag, origin) {
 								let pointer = xconnection.query_pointer(screen.root)?.reply()?;
 								let newx = targetx + (pointer.root_x - finalx);
@@ -998,11 +1047,11 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						
 
 						if let Some((index, elementtype)) = checkelement(press.event_x, press.event_y, &panelindex, &panelcoordinates) {
-						println!("elementtype: {}", elementtype);
+						//println!("elementtype: {}", elementtype);
 							if elementtype == 30 {
 								if let Some(state) = updateelement(index, elementtype, 1, &mut panelitems, &panelindex) {
 									draw = state;
-									println!("Button pressed!");
+									//println!("Button pressed!");
 								}
 							} else if elementtype == 40 {
 								//if let Some(state) = updateelement(index, elementtype, 1, &mut panelitems, &panelindex) {
@@ -1172,7 +1221,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 			//We will loop through all items in panel[?] and display them.
 			for i in 0..(panelindex[5] as usize + 1) {
-				println!("Index {} - Type {} - X {}", i, panelitems[i][0], panelcoordinates[i][0]);
+				//println!("Index {} - Type {} - X {}", i, panelitems[i][0], panelcoordinates[i][0]);
 				match panelitems[i][0] {
 					0 => {
 						//Invalid panel item, assume the rest are too!
@@ -1181,7 +1230,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					1 => {
 						//Start Button
 						drawstartbutton(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-						println!("Start Button X {}", panelcoordinates[i][0]);
+						//println!("Start Button X {}", panelcoordinates[i][0]);
 					}
 					30 => {
 						//Three pixels to the left of the icon, four to the right.
@@ -1205,7 +1254,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						
 						//Load notification graphic. 
 						
-						println!("Here Here {} {}", panelcoordinates[i][0], panelcoordinates[i][1]);
+						//println!("Here Here {} {}", panelcoordinates[i][0], panelcoordinates[i][1]);
 						
 						
 										
@@ -1224,7 +1273,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						let mut counter = 0;
 						for b in start..=31 {
 							if !panelicons[b][3].is_empty() {
-								println!("Tray Icons {} {}", counter, b);
+								//println!("Tray Icons {} {}", counter, b);
 								drawpng(&xconnection, panel, &panelicons[b][3], panelcoordinates[i][0] + 3 + (counter * 20), 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
 								counter += 1;
 							}
