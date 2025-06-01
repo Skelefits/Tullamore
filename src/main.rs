@@ -735,7 +735,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 	let mut elementreset = 255 as u8; //
 
-
+	let mut sleep = true;
 
     loop {
 		
@@ -778,221 +778,193 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 		updateclock(&xconnection, panel, gc_lowlight, phour, pminute, cminute, width, clockheight);
 		
         let event = xconnection.wait_for_event()?;
-            match event {
+        match event {
 				
 				
-				//stuff for wm
+			//stuff for wm
 
 
-				Event::MapRequest(target) => {
-					println!("MapRequest Target: {:?}", target.window);
-					
-					let external = if let Ok(attributes) = xconnection.get_window_attributes(target.window)?.reply() {
-						!attributes.override_redirect && !wm.getwindow(&target.window).is_some() && !wm.frames.contains_key(&target.window)
-					} else {
-						false
-					};
-
-					if external {
-						if let Ok(geom) = xconnection.get_geometry(target.window)?.reply() {
-							println!("Window Geometry Details:");
-							println!("  x: {}, y: {}", geom.x, geom.y);
-							println!("  width: {}, height: {}", geom.width as i16, geom.height as i16);
-							println!("  border_width: {}", geom.border_width);
-							println!("  depth: {}", geom.depth);
-							println!("  root: {:?}", geom.root);
-							
-							let title = xconnection.get_property(false, target.window, AtomEnum::WM_NAME, AtomEnum::STRING, 0, u32::MAX)?.reply().ok().and_then(|prop| String::from_utf8(prop.value).ok()).unwrap_or_else(|| String::from("Unknown"));
-							println!("  title: {}", title);
-							
-							wm.installexternalwindow(target.window, target.window, title, geom.x, geom.y, geom.width as i16, geom.height as i16, 0);
-							insertpanelwindow(&mut panelindex, target.window, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-
+			Event::MapRequest(target) => {
+				println!("MapRequest Target: {:?}", target.window);
+				
+				let external = if let Ok(attributes) = xconnection.get_window_attributes(target.window)?.reply() {
+					!attributes.override_redirect && !wm.getwindow(&target.window).is_some() && !wm.frames.contains_key(&target.window)
+				} else {
+					false
+				};
+				if external {
+					if let Ok(geom) = xconnection.get_geometry(target.window)?.reply() {
+						println!("Window Geometry Details:");
+						println!("  x: {}, y: {}", geom.x, geom.y);
+						println!("  width: {}, height: {}", geom.width as i16, geom.height as i16);
+						println!("  border_width: {}", geom.border_width);
+						println!("  depth: {}", geom.depth);
+						println!("  root: {:?}", geom.root);
+						
+						let title = xconnection.get_property(false, target.window, AtomEnum::WM_NAME, AtomEnum::STRING, 0, u32::MAX)?.reply().ok().and_then(|prop| String::from_utf8(prop.value).ok()).unwrap_or_else(|| String::from("Unknown"));
+						println!("  title: {}", title);
+						
+						wm.installexternalwindow(target.window, target.window, title, geom.x, geom.y, geom.width as i16, geom.height as i16, 0);
+						insertpanelwindow(&mut panelindex, target.window, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
 							if let Ok(frame) = createwmborder(&xconnection, &screen, &wm, target.window, geom.width, geom.height, width, height, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext) {
-								if let Some(state) = wm.windows.get_mut(&target.window) {
-									state.frame = frame;
-								}
-								wm.frames.insert(frame, target.window);
+							if let Some(state) = wm.windows.get_mut(&target.window) {
+								state.frame = frame;
 							}
+							wm.frames.insert(frame, target.window);
 						}
 					}
 				}
-
+			}
 				
-				
-				
-				
-				Event::ConfigureRequest(target) => {
-					let aux = ConfigureWindowAux::from_configure_request(&target);
-					xconnection.configure_window(target.window, &aux)?;
-					xconnection.flush()?;
+			
+			
+			
+			Event::ConfigureRequest(target) => {
+				let aux = ConfigureWindowAux::from_configure_request(&target);
+				xconnection.configure_window(target.window, &aux)?;
+				xconnection.flush()?;
+			}
+			Event::DestroyNotify(destroy) => {
 				}
-				Event::DestroyNotify(destroy) => {
-
-				}
+			
 				
-
-				
-				
-				//For moving windows around!
-				Event::MotionNotify(motion) => {
-
+			
+			//For moving windows around!
+			Event::MotionNotify(motion) => {
 					
-					if motion.event == panel {
-						//Hover over panel links.
-						if let Some((index, elementtype)) = checkelement(motion.event_x, motion.event_y, &panelindex, &panelcoordinates) {
-							if elementtype == 30 {
-								//Hovering over a link!
-								if let Some(state) = updateelement(index, elementtype, 2, &mut panelitems, &panelindex) {
-									draw = state;
-									elementreset = index as u8;
-									//println!("elementreset {}", elementreset);
-									//println!("draw {}", draw);
-								}
-							} else if elementreset < 255 {
-								if panelindex[1] <= elementreset && elementreset <= panelindex[2] {
-									panelitems[elementreset as usize][0] = 34;
-									draw = 34;
-									elementreset = 255;	
-								}
+				if motion.event == panel {
+					//Hover over panel links.
+					if let Some((index, elementtype)) = checkelement(motion.event_x, motion.event_y, &panelindex, &panelcoordinates) {
+						if elementtype == 30 {
+							//Hovering over a link!
+							if let Some(state) = updateelement(index, elementtype, 2, &mut panelitems, &panelindex) {
+								draw = state;
+								elementreset = index as u8;
+								//println!("elementreset {}", elementreset);
+								//println!("draw {}", draw);
 							}
 						} else if elementreset < 255 {
-							//Keeping duplicate code as performance is probably better.
 							if panelindex[1] <= elementreset && elementreset <= panelindex[2] {
 								panelitems[elementreset as usize][0] = 34;
 								draw = 34;
 								elementreset = 255;	
 							}
 						}
-					} else {
-						//Dragging windows n stuff
-						if let (Some(win), Some((startx, starty)), Some((winx, winy))) = (moving, drag, origin) {
-							let dx = motion.root_x - startx;
-							let dy = motion.root_y - starty;
-							let newx = winx + dx;
-							let newy = winy + dy;
-
+					} else if elementreset < 255 {
+						//Keeping duplicate code as performance is probably better.
+						if panelindex[1] <= elementreset && elementreset <= panelindex[2] {
+							panelitems[elementreset as usize][0] = 34;
+							draw = 34;
+							elementreset = 255;	
+						}
+					}
+				} else {
+					//Dragging windows n stuff
+					if let (Some(win), Some((startx, starty)), Some((winx, winy))) = (moving, drag, origin) {
+						let dx = motion.root_x - startx;
+						let dy = motion.root_y - starty;
+						let newx = winx + dx;
+						let newy = winy + dy;
 							if FASTDRAG {
-								if let Some((lx, ly, lw, lh)) = xordrawn {
-									//Draw XOR Outline to overwrite previous one.
-									drawchunkyxoroutline(&xconnection, screen.root, gc_xorcheckers, lx, ly, lw, lh)?;
-								}
-
-								//Draw outline.
-								if let Ok(geom) = xconnection.get_geometry(win)?.reply() {
-									drawchunkyxoroutline(&xconnection, screen.root, gc_xorcheckers, newx, newy, geom.width, geom.height, )?;
-									xordrawn = Some((newx, newy, geom.width, geom.height));
-								}
-							} else {
-								xconnection.configure_window(
-									win,
-									&ConfigureWindowAux::new().x(newx as i32).y(newy as i32),
-								)?;
+							if let Some((lx, ly, lw, lh)) = xordrawn {
+								//Draw XOR Outline to overwrite previous one.
+								drawchunkyxoroutline(&xconnection, screen.root, gc_xorcheckers, lx, ly, lw, lh)?;
 							}
+								//Draw outline.
+							if let Ok(geom) = xconnection.get_geometry(win)?.reply() {
+								drawchunkyxoroutline(&xconnection, screen.root, gc_xorcheckers, newx, newy, geom.width, geom.height, )?;
+								xordrawn = Some((newx, newy, geom.width, geom.height));
+							}
+						} else {
+							xconnection.configure_window(
+								win,
+								&ConfigureWindowAux::new().x(newx as i32).y(newy as i32),
+							)?;
 						}
 					}
 				}
-				
-				
-
+			}
+			
+			
 				//For releasing the window! Redraw the frame!
-				Event::ButtonRelease(release) => {
-
+			Event::ButtonRelease(release) => {
 					if FASTDRAG {
-						//Draw XOR Outline to overwrite old one.
-						if let Some((lx, ly, lw, lh)) = xordrawn { drawchunkyxoroutline(&xconnection, screen.root, gc_xorcheckers, lx, ly, lw, lh)?; xordrawn = None; }
-					}
+					//Draw XOR Outline to overwrite old one.
+					if let Some((lx, ly, lw, lh)) = xordrawn { drawchunkyxoroutline(&xconnection, screen.root, gc_xorcheckers, lx, ly, lw, lh)?; xordrawn = None; }
+				}
+				
 					
+			//Releasing the mouse click.
+				if release.event == panel {
+					if let Some((index, elementtype)) = checkelement(release.event_x, release.event_y, &panelindex, &panelcoordinates) {
+						if elementtype == 30 {
+							//Link released! Open link item.
+							if let Some(state) = updateelement(index, elementtype, 0, &mut panelitems, &panelindex) {
+								draw = state;
+								if index > 0 {
+									if index == 1 {
+										let test = createwindow(&xconnection, &screen, 100, 100, 200, 100, b"test1", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
+										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+										focuswindow(&mut wm, &xconnection, panel, test, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+										draw = 40;
+									} else if index == 2 {
+										let test = createwindow(&xconnection, &screen, 100, 100, 300, 200, b"test2", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
+										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+										focuswindow(&mut wm, &xconnection, panel, test, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+										draw = 40; 
+									} else if index == 3 {
+										let test = createwindow(&xconnection, &screen, 100, 100, 100, 100, b"test3", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
+										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+										focuswindow(&mut wm, &xconnection, panel, test, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+										draw = 40; 
 
-					
-				//Releasing the mouse click.
-					if release.event == panel {
-						if let Some((index, elementtype)) = checkelement(release.event_x, release.event_y, &panelindex, &panelcoordinates) {
-							if elementtype == 30 {
-								//Link released! Open link item.
-								if let Some(state) = updateelement(index, elementtype, 0, &mut panelitems, &panelindex) {
-									draw = state;
-									if index > 0 {
-										if index == 1 {
-											let test1 = createwindow(&xconnection, &screen, 100, 100, 200, 100, b"test1", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
-											insertpanelwindow(&mut panelindex, test1, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-										} else if index == 2 {
-											let test2 = createwindow(&xconnection, &screen, 100, 100, 300, 200, b"test2", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
-											insertpanelwindow(&mut panelindex, test2, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-										} else if index == 3 {
-											let test3 = createwindow(&xconnection, &screen, 100, 100, 100, 100, b"test3", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
-											insertpanelwindow(&mut panelindex, test3, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
 										}
-										redrawframes(&xconnection, &wm, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
-									}
-									//Run the command for that link!
+									
+
+									
+									
+									redrawframes(&xconnection, &wm, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 								}
-							} else if elementtype == 40 {
-								//Focus the selected window.
-								let client = panelwindows[index][0] as Window;
-								if let Some(state) = wm.getwindow(&client) { focuswindow(&mut wm, &xconnection, panel, client, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?; draw = elementtype; }
-
-
+								//Run the command for that link!
+							}
+						} else if elementtype == 40 {
+							//Focus the selected window.
+							let client = panelwindows[index][0] as Window;
+							if let Some(state) = wm.getwindow(&client) { focuswindow(&mut wm, &xconnection, panel, client, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?; draw = elementtype; }
 
 							}
-						}
-					} else {
-					
-					
-						if let Some(state) = wm.getframe(&release.event) {
-							//Press buttons on Window Frame.
-							let x = release.event_x;
-							let y = release.event_y;
-							
+					}
+				} else {
+				
+				
+					if let Some(state) = wm.getframe(&release.event) {
+						//Press buttons on Window Frame.
+						let x = release.event_x;
+						let y = release.event_y;
+						
 
-
-							if y >= 7 && y <= 21 {
-								let right_edge = state.width + (2 * border as i16);
-								if x >= right_edge - 54 && x < right_edge - 38 {
-									if let Some(client) = wm.frames.get(&release.event) {
-										if let Some(index) = panelwindows.iter().position(|w| w[0] == *client) {
-											if let Some(target) = wm.windows.get_mut(client) {
-												target.map = 0;
-												println!("Window.Map {} {}", target.map, index);
-												xconnection.unmap_window(release.event)?;
-												xconnection.unmap_window(*client)?;
-												
-												panelitems[index][0] = 40;
-
+						if y >= 7 && y <= 21 {
+							let right_edge = state.width + (2 * border as i16);
+							if x >= right_edge - 54 && x < right_edge - 38 {
+								if let Some(client) = wm.frames.get(&release.event) {
+									if let Some(index) = panelwindows.iter().position(|w| w[0] == *client) {
+										if let Some(target) = wm.windows.get_mut(client) {
+											target.map = 0;
+											println!("Window.Map {} {}", target.map, index);
+											xconnection.unmap_window(release.event)?;
+											xconnection.unmap_window(*client)?;
+											
+											panelitems[index][0] = 40;
 												let loopindex = index as u8;
-												for i in 1..=5 {  //Check left and right five windows for one we can focus on.
-													//Left side!
-													if let Some(checkindex) = loopindex.checked_sub(i) {
-														if checkindex >= 0 && (checkindex as usize) < panelwindows.len() {
-															if let Some(window) = wm.windows.get_mut(&panelwindows[checkindex as usize][0]) {
-																println!("Window.Map {} {}", window.map, checkindex);
-																if window.map == 3 {
-																	window.map = 2;
-																	
-																	
-																	let focusclient = panelwindows[checkindex as usize][0] as Window;
-																	if let Some(state) = wm.getwindow(&focusclient) {
-																		let focusframe = state.frame;
-																		xconnection.map_window(focusclient)?;  //Show window!
-																		xconnection.map_window(focusframe)?;  //Show frame!
-																		wm.focus(&xconnection, focusframe, panel)?;
-																	}
-																	
-																	
-																	
-																	
-																	break;
-																}
-															}
-														}
-													}
-													//Right side!
-													let checkindex = loopindex + i;
-													if (checkindex as usize) < panelwindows.len() {
+											for i in 1..=5 {  //Check left and right five windows for one we can focus on.
+												//Left side!
+												if let Some(checkindex) = loopindex.checked_sub(i) {
+													if checkindex >= 0 && (checkindex as usize) < panelwindows.len() {
 														if let Some(window) = wm.windows.get_mut(&panelwindows[checkindex as usize][0]) {
 															println!("Window.Map {} {}", window.map, checkindex);
 															if window.map == 3 {
 																window.map = 2;
+																
 																
 																let focusclient = panelwindows[checkindex as usize][0] as Window;
 																if let Some(state) = wm.getwindow(&focusclient) {
@@ -1003,312 +975,332 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 																}
 																
 																
+																
+																
 																break;
 															}
 														}
 													}
 												}
-												draw = 40;
+												//Right side!
+												let checkindex = loopindex + i;
+												if (checkindex as usize) < panelwindows.len() {
+													if let Some(window) = wm.windows.get_mut(&panelwindows[checkindex as usize][0]) {
+														println!("Window.Map {} {}", window.map, checkindex);
+														if window.map == 3 {
+															window.map = 2;
+															
+															let focusclient = panelwindows[checkindex as usize][0] as Window;
+															if let Some(state) = wm.getwindow(&focusclient) {
+																let focusframe = state.frame;
+																xconnection.map_window(focusclient)?;  //Show window!
+																xconnection.map_window(focusframe)?;  //Show frame!
+																wm.focus(&xconnection, focusframe, panel)?;
+															}
+															
+															
+															break;
+														}
+													}
+												}
 											}
+											draw = 40;
 										}
 									}
 								}
 							}
-
-
-
+						}
 
 
 						}
-						if let Some(target) = moving {
-							//Move window.
-							if let (Some((finalx, finaly)), Some((targetx, targety))) = (drag, origin) {
-								let pointer = xconnection.query_pointer(screen.root)?.reply()?;
-								let newx = targetx + (pointer.root_x - finalx);
-								let newy = targety + (pointer.root_y - finaly);
-								
-								//Update xy on X server.
-								xconnection.configure_window(target, &ConfigureWindowAux::new().x(newx as i32).y(newy as i32))?;
-								
-								//Update wm!
-								if let Some(state) = wm.windows.values_mut().find(|s| s.frame == target) {
-									state.x = newx;
-									state.y = newy;
-								}
-							}
-						}
-
-						moving = None;
-						drag = None;
-						origin = None;
-
-						//Redraw window frames.
-						redrawframes(&xconnection, &wm, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
-
-					}
-
-					xconnection.flush()?;
-				}
-				
-				//We need a lot more comments here!
-                Event::ButtonPress(press) => {
-					
-					
-					if press.detail == 1 { //Left mouse button pressed.
-					
-					
-					//Panel (New)
-					if press.event == panel {
-						
-						
-
-						if let Some((index, elementtype)) = checkelement(press.event_x, press.event_y, &panelindex, &panelcoordinates) {
-						//println!("elementtype: {}", elementtype);
-							if elementtype == 30 {
-								if let Some(state) = updateelement(index, elementtype, 1, &mut panelitems, &panelindex) {
-									draw = state;
-									//println!("Button pressed!");
-								}
-							} else if elementtype == 40 {
-								//if let Some(state) = updateelement(index, elementtype, 1, &mut panelitems, &panelindex) {
-								//	draw = state;
-								//	println!("Task button pressed!");
-								//}
-							}
-						}
-
-					
-					}	
-					
-					
-					
-					
-						//For the outline drag only.
-						if FASTDRAG {
-							if let Event::ButtonPress(ButtonPressEvent { root_x, root_y, .. }) = event {
-								let pointer = xconnection.query_pointer(screen.root)?.reply()?;
-								dragpressoffsetx = pointer.root_x - root_x as i16;
-								dragpressoffsety = pointer.root_y - root_y as i16;
-							}
-						}
-					
-					
-				
-
-						let target = press.event;
-						if let Some((frame, statex, statey)) = wm.getframe(&target).map(|state| (state.frame, state.x, state.y)).or_else(|| wm.windows.values().find(|state| state.window == target).map(|state| (state.frame, state.x, state.y))) {
-							wm.focus(&xconnection, frame, panel)?;
+					if let Some(target) = moving {
+						//Move window.
+						if let (Some((finalx, finaly)), Some((targetx, targety))) = (drag, origin) {
+							let pointer = xconnection.query_pointer(screen.root)?.reply()?;
+							let newx = targetx + (pointer.root_x - finalx);
+							let newy = targety + (pointer.root_y - finaly);
 							
-							if target == frame && press.event_y < titlebar as i16 {
-								moving = Some(frame);
-								drag = Some((press.root_x, press.root_y));
-								origin = Some((statex, statey));
+							//Update xy on X server.
+							xconnection.configure_window(target, &ConfigureWindowAux::new().x(newx as i32).y(newy as i32))?;
+							
+							//Update wm!
+							if let Some(state) = wm.windows.values_mut().find(|s| s.frame == target) {
+								state.x = newx;
+								state.y = newy;
 							}
-
-							let redraw: Vec<(Window, Window, i16, i16)> = wm.windows.values().filter(|state| state.map == 2 || state.map == 3).map(|state| {
-								let fwidth = state.width + (2 * border as i16);
-								let fheight = state.height + (2 * border as i16) + (titlebar as i16);
-								(state.frame, state.window, fwidth, fheight)
-							}).collect();
-
-							for (frame, client, width, height) in redraw {
-								if frame != panel {
-									updateborder(&xconnection, frame, client, width, height, titlebar, border,gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground,gc_titlebar, gc_titlebartext)?;
-								}
-							}
-							//Draw the taskbar window buttons.
-							//drawpanelwindows(&xconnection, panel, 61, width - panelcoordinates[trayindex as usize][1] - 67, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers, &wm)?;
-							draw = 40;
 						}
+					}
+						moving = None;
+					drag = None;
+					origin = None;
+						//Redraw window frames.
+					redrawframes(&xconnection, &wm, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+					}
+					xconnection.flush()?;
+			}
+			
+			//We need a lot more comments here!
+               Event::ButtonPress(press) => {
+				
+				
+				if press.detail == 1 { //Left mouse button pressed.
+				
+				
+				//Panel (New)
+				if press.event == panel {
 					
 					
+						if let Some((index, elementtype)) = checkelement(press.event_x, press.event_y, &panelindex, &panelcoordinates) {
+					//println!("elementtype: {}", elementtype);
+						if elementtype == 30 {
+							if let Some(state) = updateelement(index, elementtype, 1, &mut panelitems, &panelindex) {
+								draw = state;
+								//println!("Button pressed!");
+							}
+						} else if elementtype == 40 {
+							//if let Some(state) = updateelement(index, elementtype, 1, &mut panelitems, &panelindex) {
+							//	draw = state;
+							//	println!("Task button pressed!");
+							//}
+						}
+					}
 					
-					
-					
-					
-					
-					
-						if press.event_y > height - 20 && press.event_y < height - 5 {
-							if press.event_x > panelcoordinates[panelindex[5] as usize][0] {
-								if press.event_x < width - 60 {
-									let clickedicon = icons as i16 - 1 - (press.event_x - (width - panelcoordinates[panelindex[5] as usize][1])) / 20;
-									if clickedicon >= 0 {
-										println!("Icon index: {}", clickedicon + 1);
-									}
-								} else {
-									println!("Clock clicked!");
+				}	
+				
+				
+				
+				
+					//For the outline drag only.
+					if FASTDRAG {
+						if let Event::ButtonPress(ButtonPressEvent { root_x, root_y, .. }) = event {
+							let pointer = xconnection.query_pointer(screen.root)?.reply()?;
+							dragpressoffsetx = pointer.root_x - root_x as i16;
+							dragpressoffsety = pointer.root_y - root_y as i16;
+						}
+					}
+				
+				
+			
+						let target = press.event;
+					if let Some((frame, statex, statey)) = wm.getframe(&target).map(|state| (state.frame, state.x, state.y)).or_else(|| wm.windows.values().find(|state| state.window == target).map(|state| (state.frame, state.x, state.y))) {
+						sleep = false;
+						wm.focus(&xconnection, frame, panel)?;
+						
+						if target == frame && press.event_y < titlebar as i16 {
+							moving = Some(frame);
+							drag = Some((press.root_x, press.root_y));
+							origin = Some((statex, statey));
+						}
+							let redraw: Vec<(Window, Window, i16, i16)> = wm.windows.values().filter(|state| state.map == 2 || state.map == 3).map(|state| {
+							let fwidth = state.width + (2 * border as i16);
+							let fheight = state.height + (2 * border as i16) + (titlebar as i16);
+							(state.frame, state.window, fwidth, fheight)
+						}).collect();
+							for (frame, client, width, height) in redraw {
+							if frame != panel {
+								updateborder(&xconnection, frame, client, width, height, titlebar, border,gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground,gc_titlebar, gc_titlebartext)?;
+							}
+						}
+						//Draw the taskbar window buttons.
+						//drawpanelwindows(&xconnection, panel, 61, width - panelcoordinates[trayindex as usize][1] - 67, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers, &wm)?;
+						draw = 40;
+					} else {
+						sleep = true;
+					}
+				
+				
+				
+				
+				
+				
+				
+				
+					if press.event_y > height - 20 && press.event_y < height - 5 {
+						if press.event_x > panelcoordinates[panelindex[5] as usize][0] {
+							if press.event_x < width - 60 {
+								let clickedicon = icons as i16 - 1 - (press.event_x - (width - panelcoordinates[panelindex[5] as usize][1])) / 20;
+								if clickedicon >= 0 {
+									println!("Icon index: {}", clickedicon + 1);
 								}
 							} else {
-								println!("Middle of panel clicked!");
-								let linkx = panelcoordinates[panelindex[1] as usize][0];
-								if press.event_x > linkx {
-								
-									let windowx = panelcoordinates[panelindex[3] as usize][0];
-									if press.event_x > windowx {
-										let link = clickelement(press.event_x - windowx, panelcoordinates[panelindex[3] as usize][1]);
-										println!("Window Button Clicked: {}", link);
-									} else if press.event_x < panelcoordinates[panelindex[3] as usize][0] {
-										let link = clickelement(press.event_x - linkx, panelcoordinates[panelindex[1] as usize][1]);
-										println!("Link Clicked: {}", link);
-									}
-									
-									
-									
-									
-								
-								}
+								println!("Clock clicked!");
 							}
 						} else {
-							println!("Mouse button pressed at ({}, {}) with button: {}", press.event_x, press.event_y, press.detail);
-						}
-					}
-                }
-                Event::Error(_) => println!("bug bug"), _ => (),
-            }
-
-			
-			
-	if draw > 0 {
-
-		if draw == 30 {
-			let tempstart = panelcoordinates[panelindex[1] as usize][0] - 1;
-			let tempwidth = panelcoordinates[panelindex[3] as usize][0] - tempstart;
-			xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: tempstart, y: 3, width: tempwidth as u16, height: panelheight }])?;
-			for i in panelindex[1] as usize..panelindex[3] as usize {
-				match panelitems[i][0] {
-					30 => {
-						drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-					}
-					32 => {
-						drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-						drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_lowbackground, gc_highlight)?;
-					}
-					_ => {
-						break;
-					}
-				}
-			}
-		} else if draw > 30 && draw < 35 {
-			//println!("draw function > 30 < 35 entered {}", draw);
-			for i in (panelindex[1] as usize..=(panelindex[2] as usize)) {
-				//println!("i {} in panelindex[1] {} and panelindex[2] {} panelitems[i][0] {}", i, panelindex[1], panelindex[2], panelitems[i][0]);
-				match panelitems[i][0] {
-					34 => {
-						drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_highbackground, gc_highbackground)?;
-						panelitems[i][0] = 30;
-					}
-					31 => {
-						//Press link!
-						drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_highlight, gc_lowbackground)?;
-					}
-					32 => {
-						//println!("Hover over link! {}", draw);
-						//Hover over link!
-						drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_lowbackground, gc_highlight)?;
-					}
-					_ => {
-
-					}
-				}
-			}
-		} else if draw == 40 {
-			//Redraw the tray windows only!
-			let tempstart = panelcoordinates[panelindex[3] as usize][0];
-			let tempwidth = panelcoordinates[panelindex[5] as usize][0] - tempstart;
-			xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: tempstart, y: 3, width: tempwidth as u16, height: panelheight }])?; //Draw panel background.
-			for i in (1..(panelindex[5] as usize)).rev() {
-				match panelitems[i][0] {
-					40 => {
-						//startx: i16, starty: i16, framewidth: i16, frameheight: i1
-						drawwindowbuttons(&xconnection, panel, panelwindows[i][0], panelcoordinates[i][0], panelcoordinates[i][1], &wm, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
-					}
-					_ => {
-						break;
-						
-					}
-				}
-			}
-		} else {
-
-		//Let's draw the panel.
-		xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: 0, y: 0, width: width as u16, height: panelheight }])?; //Draw panel background.
-		xconnection.poly_line(CoordMode::PREVIOUS, panel, gc_highlight, &[Point { x: 0, y: 1 }, Point { x: width as i16, y: 0 }])?; //Draw panel highlight.
-
-
-			//We will loop through all items in panel[?] and display them.
-			for i in 0..(panelindex[5] as usize + 1) {
-				//println!("Index {} - Type {} - X {}", i, panelitems[i][0], panelcoordinates[i][0]);
-				match panelitems[i][0] {
-					0 => {
-						//Invalid panel item, assume the rest are too!
-						break;
-					}
-					1 => {
-						//Start Button
-						drawstartbutton(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-						//println!("Start Button X {}", panelcoordinates[i][0]);
-					}
-					30 => {
-						//Three pixels to the left of the icon, four to the right.
-						drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-						
-					}
-					40 => {
-						//startx: i16, starty: i16, framewidth: i16, frameheight: i1
-						
-						drawwindowbuttons(&xconnection, panel, panelwindows[i][0], panelcoordinates[i][0], panelcoordinates[i][1], &wm, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
-						
-
-						
-					}
-					60 => {
-						//Notification Area
-						
-						//Notification - Depression
-						drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowbackground)?;
-						
-						
-						//Load notification graphic. 
-						
-						//println!("Here Here {} {}", panelcoordinates[i][0], panelcoordinates[i][1]);
-						
-						
-										
-						let mut start = 16;
-						//This is dumb. Surely there was a better way to print icons right to left.
-						//Anyway, this bit of code will hopefully save something.
-						//Reorder this when the default number of expected icons increases.
-						if panelicons[27][3].is_empty() {
-							start = 28;
-						} else if panelicons[23][3].is_empty() {
-							start = 24;
-						} else if panelicons[19][3].is_empty() {
-							start = 20;
-						}
-						//Check panelicons from Start to 31 and print them right to left in the notificaiton tray.
-						let mut counter = 0;
-						for b in start..=31 {
-							if !panelicons[b][3].is_empty() {
-								//println!("Tray Icons {} {}", counter, b);
-								drawpng(&xconnection, panel, &panelicons[b][3], panelcoordinates[i][0] + 3 + (counter * 20), 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-								counter += 1;
+							println!("Middle of panel clicked!");
+							let linkx = panelcoordinates[panelindex[1] as usize][0];
+							if press.event_x > linkx {
+							
+								let windowx = panelcoordinates[panelindex[3] as usize][0];
+								if press.event_x > windowx {
+									let link = clickelement(press.event_x - windowx, panelcoordinates[panelindex[3] as usize][1]);
+									println!("Window Button Clicked: {}", link);
+								} else if press.event_x < panelcoordinates[panelindex[3] as usize][0] {
+									let link = clickelement(press.event_x - linkx, panelcoordinates[panelindex[1] as usize][1]);
+									println!("Link Clicked: {}", link);
+								}
+								
+								
+								
+								
+							
 							}
 						}
-						(_, pminute, phour) = drawclock(&xconnection, panel, gc_lowlight, width, clockheight)?;
-
-					}
-					_ => {
-						println!("{} {} {} {}", panelitems[i][0], panelcoordinates[i][0], panelcoordinates[i][1], panelwindows[i][0]);
+					} else {
+						println!("Mouse button pressed at ({}, {}) with button: {}", press.event_x, press.event_y, press.detail);
 					}
 				}
 			}
-		}
-		draw = 0;
-		//thread::sleep(Duration::from_millis(10));
-	}
+               Event::Error(_) => println!("bug bug"), _ => (),
+        }
 			
+			
+		if draw > 0 {
+
+			if draw == 30 {
+				let tempstart = panelcoordinates[panelindex[1] as usize][0] - 1;
+				let tempwidth = panelcoordinates[panelindex[3] as usize][0] - tempstart;
+				xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: tempstart, y: 3, width: tempwidth as u16, height: panelheight }])?;
+				for i in panelindex[1] as usize..panelindex[3] as usize {
+					match panelitems[i][0] {
+						30 => {
+							drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+						}
+						32 => {
+							drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+							drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_lowbackground, gc_highlight)?;
+						}
+						_ => {
+							break;
+						}
+					}
+				}
+			} else if draw > 30 && draw < 35 {
+				//println!("draw function > 30 < 35 entered {}", draw);
+				for i in (panelindex[1] as usize..=(panelindex[2] as usize)) {
+					//println!("i {} in panelindex[1] {} and panelindex[2] {} panelitems[i][0] {}", i, panelindex[1], panelindex[2], panelitems[i][0]);
+					match panelitems[i][0] {
+						34 => {
+							drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_highbackground, gc_highbackground)?;
+							panelitems[i][0] = 30;
+						}
+						31 => {
+							//Press link!
+							drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_highlight, gc_lowbackground)?;
+						}
+						32 => {
+							//println!("Hover over link! {}", draw);
+							//Hover over link!
+							drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1] - 2, 4, panelcoordinates[i][1] - 1, 21, gc_lowbackground, gc_highlight)?;
+						}
+						_ => {
+
+						}
+					}
+				}
+			} else if draw == 40 {
+				//Redraw the tray windows only!
+				let tempstart = panelcoordinates[panelindex[3] as usize][0];
+				let tempwidth = panelcoordinates[panelindex[5] as usize][0] - tempstart;
+				xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: tempstart, y: 3, width: tempwidth as u16, height: panelheight }])?; //Draw panel background.
+				for i in (1..(panelindex[5] as usize)).rev() {
+					match panelitems[i][0] {
+						40 => {
+							//startx: i16, starty: i16, framewidth: i16, frameheight: i1
+							drawwindowbuttons(&xconnection, panel, panelwindows[i][0], panelcoordinates[i][0], panelcoordinates[i][1], &wm, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+						}
+						_ => {
+							break;
+							
+						}
+					}
+				}
+			} else {
+
+			//Let's draw the panel.
+			xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: 0, y: 0, width: width as u16, height: panelheight }])?; //Draw panel background.
+			xconnection.poly_line(CoordMode::PREVIOUS, panel, gc_highlight, &[Point { x: 0, y: 1 }, Point { x: width as i16, y: 0 }])?; //Draw panel highlight.
+
+
+				//We will loop through all items in panel[?] and display them.
+				for i in 0..(panelindex[5] as usize + 1) {
+					//println!("Index {} - Type {} - X {}", i, panelitems[i][0], panelcoordinates[i][0]);
+					match panelitems[i][0] {
+						0 => {
+							//Invalid panel item, assume the rest are too!
+							break;
+						}
+						1 => {
+							//Start Button
+							drawstartbutton(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+							//println!("Start Button X {}", panelcoordinates[i][0]);
+						}
+						30 => {
+							//Three pixels to the left of the icon, four to the right.
+							drawpng(&xconnection, panel, &panelicons[panelwindows[i][0] as usize][3], panelcoordinates[i][0] + 3, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+							
+						}
+						40 => {
+							//startx: i16, starty: i16, framewidth: i16, frameheight: i1
+							
+							drawwindowbuttons(&xconnection, panel, panelwindows[i][0], panelcoordinates[i][0], panelcoordinates[i][1], &wm, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+							
+
+							
+						}
+						60 => {
+							//Notification Area
+							
+							//Notification - Depression
+							drawdepressedframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowbackground)?;
+							
+							
+							//Load notification graphic. 
+							
+							//println!("Here Here {} {}", panelcoordinates[i][0], panelcoordinates[i][1]);
+							
+							
+											
+							let mut start = 16;
+							//This is dumb. Surely there was a better way to print icons right to left.
+							//Anyway, this bit of code will hopefully save something.
+							//Reorder this when the default number of expected icons increases.
+							if panelicons[27][3].is_empty() {
+								start = 28;
+							} else if panelicons[23][3].is_empty() {
+								start = 24;
+							} else if panelicons[19][3].is_empty() {
+								start = 20;
+							}
+							//Check panelicons from Start to 31 and print them right to left in the notificaiton tray.
+							let mut counter = 0;
+							for b in start..=31 {
+								if !panelicons[b][3].is_empty() {
+									//println!("Tray Icons {} {}", counter, b);
+									drawpng(&xconnection, panel, &panelicons[b][3], panelcoordinates[i][0] + 3 + (counter * 20), 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+									counter += 1;
+								}
+							}
+							(_, pminute, phour) = drawclock(&xconnection, panel, gc_lowlight, width, clockheight)?;
+
+						}
+						_ => {
+							println!("{} {} {} {}", panelitems[i][0], panelcoordinates[i][0], panelcoordinates[i][1], panelwindows[i][0]);
+						}
+					}
+				}
+			}
+			draw = 0;
+		}
+			
+		if sleep == true {
+			thread::sleep(Duration::from_millis(10));
+			//println!("sleeping");
+		} else {
+			//println!("waking");
+		}
 			
 		xconnection.flush()?;
+		
     }
     println!("wat?");
 }
