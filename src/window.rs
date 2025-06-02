@@ -155,22 +155,24 @@ pub fn drawpanelwindows<C: Connection>(xconnection: &C, window: u32, startx: i16
     Ok(())
 }
 
-pub fn drawwindowbuttons<C: Connection>(xconnection: &C, panel: Window, window_id: Window, x: i16, width: i16, wm: &WindowManager, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_highcheckers: u32) -> Result<(), Box<dyn Error>> {
-    if let Some(state) = wm.getwindow(&window_id) {
-        let focused = state.map == 2;  //2 = focus, 3 = visible but unfocused
-        if focused {
-            drawdepressedbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
-			if width >= 20 {
-				drawpng(xconnection, panel, "computer.png", x + 4, 8, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-				xconnection.image_text8(panel, gc_lowlight, x + 24, 20, squishtext(&state.title, width - 28, 6).as_bytes())?;
-			}
-        } else {
-            drawbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-			if width >= 20 {
-				drawpng(xconnection, panel, "computer.png", x + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-				xconnection.image_text8(panel, gc_lowlight, x + 24, 19, squishtext(&state.title, width - 28, 6).as_bytes())?;
-			}
-        }
+pub fn drawwindowbuttons<C: Connection>(xconnection: &C, panel: Window, u8_panelitem: u8, str_title: &str, x: i16, width: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_highcheckers: u32) -> Result<(), Box<dyn Error>> {
+	println!("u8_panelitem {}", u8_panelitem);	
+    if u8_panelitem == 43 {
+        drawdepressedbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+		if width >= 20 {
+			drawpng(xconnection, panel, "computer.png", x + 4, 8, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+			xconnection.image_text8(panel, gc_lowlight, x + 24, 20, squishtext(str_title, width - 28, 6).as_bytes())?;
+		}
+    } else {
+		if u8_panelitem == 41 {
+			drawdepressedbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, 0)?;
+		} else {
+			drawbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+		}
+		if width >= 20 {
+			drawpng(xconnection, panel, "computer.png", x + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+			xconnection.image_text8(panel, gc_lowlight, x + 24, 19, squishtext(str_title, width - 28, 6).as_bytes())?;
+		}
     }
     Ok(())
 }

@@ -155,13 +155,16 @@ pub fn drawdepressedbumpyframe<C: Connection>(xconnection: &C, window: u32, star
 		Point { x: framewidth - 3, y: 0 },
 	])?;
 	
+	if gc_highcheckers > 0 {
+	
 	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_highlight, &[
 		Point { x: startx + 2, y: 6 },
 		Point { x: framewidth - 4, y: 0 },
 	])?;
 	
-	xconnection.poly_fill_rectangle(window, gc_highcheckers, &[Rectangle { x: startx + 2, y: starty + 3, width: framewidth as u16 - 3, height: frameheight as u16 - 4}])?;
 	
+		xconnection.poly_fill_rectangle(window, gc_highcheckers, &[Rectangle { x: startx + 2, y: starty + 3, width: framewidth as u16 - 3, height: frameheight as u16 - 4}])?;
+	}
 	
     Ok(())
 }
