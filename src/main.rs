@@ -60,7 +60,8 @@ struct WindowState {
 	z: u32,
     width: i16,
     height: i16,
-    map: u8, //0 for hidden taskbar, 1 for hidden notification bar, 2 for visible and focused, 3 for visble and not focused
+    map: u8, //0 for hidden taskbar, 1 for hidden notification tray, 2 for visible and focused (taskbar), 3 for visble and not focused (taskbar)
+			 //4 for visible and focused (notification tray), 5 for visible and not focused (notification tray)
     order: u8,
 }
 
@@ -726,25 +727,14 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 	let mut draw = 1 as u8;
 
 
 
 	let mut elementreset = 255 as u8; //
+	
+	let mut windowactive = 255 as u8;
+	let mut windowlast = 255 as u8;
 
 	let mut sleep = true;
 
@@ -823,6 +813,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							}
 							wm.frames.insert(frame, target.window);
 						}
+						draw = 40;
 					}
 				}
 			}
@@ -854,20 +845,12 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 								//println!("elementreset {}", elementreset);
 								//println!("draw {}", draw);
 							}
-						} else if elementreset < 255 {
-							if panelindex[1] <= elementreset && elementreset <= panelindex[2] {
-								panelitems[elementreset as usize][0] = 34;
-								draw = 34;
-								elementreset = 255;	
-							}
+						} else if elementtype == 40 {
+						} else {
+							resetpanelelement(&mut draw, &mut elementreset, &mut panelitems, &panelindex);
 						}
-					} else if elementreset < 255 {
-						//Keeping duplicate code as performance is probably better.
-						if panelindex[1] <= elementreset && elementreset <= panelindex[2] {
-							panelitems[elementreset as usize][0] = 34;
-							draw = 34;
-							elementreset = 255;	
-						}
+					} else {
+						resetpanelelement(&mut draw, &mut elementreset, &mut panelitems, &panelindex);
 					}
 				} else {
 					//Dragging windows n stuff
@@ -899,13 +882,13 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 			
 				//For releasing the window! Redraw the frame!
 			Event::ButtonRelease(release) => {
-					if FASTDRAG {
+				if FASTDRAG {
 					//Draw XOR Outline to overwrite old one.
 					if let Some((lx, ly, lw, lh)) = xordrawn { drawchunkyxoroutline(&xconnection, screen.root, gc_xorcheckers, lx, ly, lw, lh)?; xordrawn = None; }
 				}
 				
 					
-			//Releasing the mouse click.
+				//Releasing the mouse click.
 				if release.event == panel {
 					if let Some((index, elementtype)) = checkelement(release.event_x, release.event_y, &panelindex, &panelcoordinates) {
 						if elementtype == 30 {
@@ -929,7 +912,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 										focuswindow(&mut wm, &xconnection, panel, test, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 										draw = 40; 
 
-										}
+									}
 									
 
 									
@@ -940,6 +923,8 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							}
 						} else if elementtype == 40 {
 							//Focus the selected window.
+							windowlast = windowactive;
+							windowactive = index as u8;
 							panelitems[index][0] = 43;
 							let client = panelwindows[index][0] as Window;
 							if let Some(state) = wm.getwindow(&client) { focuswindow(&mut wm, &xconnection, panel, client, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?; draw = elementtype; }
@@ -955,8 +940,8 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						
 
 						if y >= 7 && y <= 21 {
-							let right_edge = state.width + (2 * border as i16);
-							if x >= right_edge - 54 && x < right_edge - 38 {
+							let edge = state.width + (2 * border as i16);
+							if x >= edge - 54 && x < edge - 38 {
 								if let Some(client) = wm.frames.get(&release.event) {
 									if let Some(index) = panelwindows.iter().position(|w| w[0] == *client) {
 										if let Some(target) = wm.windows.get_mut(client) {
@@ -968,11 +953,35 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 											panelitems[index][0] = 40;
 											draw = 40;
 											
-											let loopindex = index as u8;
-											for i in 1..=5 {  //Check left and right five windows for one we can focus on.
-												//Left side!
-												if let Some(checkindex) = loopindex.checked_sub(i) {
-													if checkindex >= 0 && (checkindex as usize) < panelwindows.len() {
+											println!("windowactive {} windowlast {}", windowactive, windowlast);
+											
+											if windowlast == 255 || windowlast == windowactive {
+												let loopindex = index as u8;
+												for i in 1..=5 {  //Check left and right five windows for one we can focus on.
+													//Left side!
+													if let Some(checkindex) = loopindex.checked_sub(i) {
+														if checkindex >= 0 && (checkindex as usize) < panelwindows.len() {
+															if let Some(window) = wm.windows.get_mut(&panelwindows[checkindex as usize][0]) {
+																println!("Window.Map {} {}", window.map, checkindex);
+																if window.map == 3 {
+																	window.map = 2;
+																	
+																	panelitems[checkindex as usize][0] = 43;
+																	
+																	
+																	focuswindow(&mut wm, &xconnection, panel, panelwindows[checkindex as usize][0] as Window, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+																	
+																	
+																	
+																	
+																	break;
+																}
+															}
+														}
+													}
+													//Right side!
+													let checkindex = loopindex + i;
+													if (checkindex as usize) < panelwindows.len() {
 														if let Some(window) = wm.windows.get_mut(&panelwindows[checkindex as usize][0]) {
 															println!("Window.Map {} {}", window.map, checkindex);
 															if window.map == 3 {
@@ -980,16 +989,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 																
 																panelitems[checkindex as usize][0] = 43;
 																
-																
-																let focusclient = panelwindows[checkindex as usize][0] as Window;
-																if let Some(state) = wm.getwindow(&focusclient) {
-																	let focusframe = state.frame;
-																	xconnection.map_window(focusclient)?;  //Show window!
-																	xconnection.map_window(focusframe)?;  //Show frame!
-																	wm.focus(&xconnection, focusframe, panel)?;
-																}
-																
-																
+																focuswindow(&mut wm, &xconnection, panel, panelwindows[checkindex as usize][0] as Window, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 																
 																
 																break;
@@ -997,34 +997,31 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 														}
 													}
 												}
-												//Right side!
-												let checkindex = loopindex + i;
-												if (checkindex as usize) < panelwindows.len() {
-													if let Some(window) = wm.windows.get_mut(&panelwindows[checkindex as usize][0]) {
-														println!("Window.Map {} {}", window.map, checkindex);
-														if window.map == 3 {
-															window.map = 2;
-															
-															panelitems[checkindex as usize][0] = 43;
-															
-															let focusclient = panelwindows[checkindex as usize][0] as Window;
-															if let Some(state) = wm.getwindow(&focusclient) {
-																let focusframe = state.frame;
-																xconnection.map_window(focusclient)?;  //Show window!
-																xconnection.map_window(focusframe)?;  //Show frame!
-																wm.focus(&xconnection, focusframe, panel)?;
-															}
-															
-															
-															break;
-														}
-													}
-												}
+											} else {
+												
+												windowactive = windowlast;
+												panelitems[windowactive as usize][0] = 43;
+												windowlast = 255;
+												
+												
+												focuswindow(&mut wm, &xconnection, panel, panelwindows[windowactive as usize][0] as Window, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+
 											}
+											
 										}
 									}
 								}
+							} if x >= edge - 22 && x < edge - 6 {
+							
+							
+
+							//Close the window!
+
+
+							
 							}
+							
+							
 						}
 
 
@@ -1046,7 +1043,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							}
 						}
 					}
-						moving = None;
+					moving = None;
 					drag = None;
 					origin = None;
 						//Redraw window frames.
@@ -1062,28 +1059,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				if press.detail == 1 { //Left mouse button pressed.
 				
 				
-				//Panel (New)
-				if press.event == panel {
-					
-					
-						if let Some((index, elementtype)) = checkelement(press.event_x, press.event_y, &panelindex, &panelcoordinates) {
-					//println!("elementtype: {}", elementtype);
-						if elementtype == 30 {
-							if let Some(state) = updateelement(index, elementtype, 1, &mut panelitems, &panelindex) {
-								draw = state;
-								//println!("Button pressed!");
-							}
-						} else if elementtype == 40 {
-							//Window button pressed!
-							//TODO: FIX ME FIX THIS!
-							if let Some(state) = updateelement(index, elementtype, 1, &mut panelitems, &panelindex) {
-								draw = 40;
-							}
-							
-						}
-					}
-					
-				}	
+
 				
 				
 				
@@ -1098,7 +1074,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					}
 				
 				
-			
+					
 					let target = press.event;
 					if let Some((frame, statex, statey)) = wm.getframe(&target).map(|state| (state.frame, state.x, state.y)).or_else(|| wm.windows.values().find(|state| state.window == target).map(|state| (state.frame, state.x, state.y))) {
 						sleep = false;
@@ -1116,10 +1092,15 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						}
 						
 						for i in (panelindex[3] as usize)..=(panelindex[4] as usize) {
+							//TODO: remove this!
 							//I don't like this loop.
 							if panelwindows[i][0] == paneltarget as u32 {
+								windowactive = i as u8;
 								panelitems[i][0] = 43;
 							} else {
+								if panelwindows[i][0] == 43 {
+									windowlast = i as u8;
+								}
 								panelitems[i][0] = 40;
 							}
 						}	
@@ -1157,7 +1138,32 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				
 				
 				
-				
+				//Panel (New)
+				if press.event == panel {
+
+					
+						if let Some((index, elementtype)) = checkelement(press.event_x, press.event_y, &panelindex, &panelcoordinates) {
+					//println!("elementtype: {}", elementtype);
+						if elementtype == 30 {
+							if let Some(state) = updateelement(index, elementtype, 1, &mut panelitems, &panelindex) {
+								draw = state;
+								//println!("Button pressed!");
+							}
+						} else if elementtype == 40 {
+							//Window button pressed!
+							//TODO: FIX ME FIX THIS!
+							
+							if let Some(state) = updateelement(index, elementtype, 1, &mut panelitems, &panelindex) {
+								println!("Press window button, state: {}", state);
+								draw = 41;
+								elementreset = index as u8;
+							}
+						} else {
+							resetpanelelement(&mut draw, &mut elementreset, &mut panelitems, &panelindex);
+						}
+					}
+					
+				}	
 				
 				
 				
@@ -1165,7 +1171,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						if press.event_x > panelcoordinates[panelindex[5] as usize][0] {
 							if press.event_x < width - 60 {
 								let clickedicon = icons as i16 - 1 - (press.event_x - (width - panelcoordinates[panelindex[5] as usize][1])) / 20;
-								if clickedicon >= 0 {
+								if clickedicon >= 0 { 
 									println!("Icon index: {}", clickedicon + 1);
 								}
 							} else {
@@ -1254,15 +1260,20 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						}
 						41 => {
 							//startx: i16, starty: i16, framewidth: i16, frameheight: i1
-							drawdepressedbumpyframe(&xconnection, panel, panelcoordinates[i][0] + panelcoordinates[i][1], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_lowbackground)?;
+							drawdepressedbumpyframe(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, 0)?;
 						}
 						43 => {
 							//Engaged
 							//startx: i16, starty: i16, framewidth: i16, frameheight: i1
 							//drawwindowbuttons(&xconnection, panel, panelwindows[i][0], panelcoordinates[i][0], panelcoordinates[i][1], &wm, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
 						}
+						44 => {
+							println!("so far so good");
+							panelitems[i][0] = 40;
+							drawwindowbuttons(&xconnection, panel, panelitems[i][0], &wm.getwindow(&(panelwindows[i][0] as Window)).unwrap().title, panelcoordinates[i][0], panelcoordinates[i][1], gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+							//drawbumpyframe(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, 0, gc_lowbackground)?;
+						}
 						_ => {
-							break;
 							
 						}
 					}
@@ -1361,7 +1372,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 		}
 			
 		if sleep == true {
-			thread::sleep(Duration::from_millis(10));
+			thread::sleep(Duration::from_millis(5));
 			//println!("sleeping");
 		} else {
 			//println!("waking");
@@ -1429,6 +1440,8 @@ fn updateelement(target: usize, elementtype: u8, new: u8, panelitems: &mut [[u8;
 
 	let (start, end) = if elementtype == 30 { (panelindex[1] as usize, panelindex[2] as usize) } else if elementtype == 40 { (panelindex[3] as usize, panelindex[4] as usize) } else { (0, 0) };
 
+	//println!("start {} end {}", start, end);
+
 
     if new == 0 {
 		//Is this still used???
@@ -1442,6 +1455,9 @@ fn updateelement(target: usize, elementtype: u8, new: u8, panelitems: &mut [[u8;
             }
         }
         panelitems[target][0] = elementtype;
+		
+		//println!("new == 0 state > 0 panelitems[{}][0] {}", target, elementtype);
+		
         return Some(elementtype);
     }
 
@@ -1456,6 +1472,9 @@ fn updateelement(target: usize, elementtype: u8, new: u8, panelitems: &mut [[u8;
         }
 		let exit = elementtype + new;
         panelitems[target][0] = exit;
+		
+		//println!("(new == 1 && state >= 0) || (new == 2 && state == 0) panelitems[{}][0] {}", target, exit);
+		
 		//println!("Loop 2's Final: {} s {}", target, exit);
         return Some(exit);
     }
@@ -1472,4 +1491,40 @@ fn focuswindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Wi
         for (frame, client, width, height) in redraw { if frame != panel { updateborder(&xconnection, frame, client, width, height, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?; } }
     }
     Ok(())
+}
+
+
+fn resetpanelelement(draw: &mut u8, elementreset: &mut u8, panelitems: &mut [[u8; 1]; 128], panelindex: &[u8; 6]) {
+	//This function reset the link or window button if you move the mouse away from it.
+    if *elementreset < 255 {
+		let mut target = *elementreset as usize;
+		let mut output = 0;
+        if panelindex[1] <= *elementreset && *elementreset <= panelindex[2] {
+			output = 34;
+		} else if panelindex[3] <= *elementreset && *elementreset <= panelindex[4] {
+			if panelitems[target][0] == 43 {
+				//If the window button on the panel is active, we don't want it to be reset!
+				//However, we can reset the buttons either side if they are indented.
+				println!("useful");
+				if panelitems[target - 1][0] == 41 {
+					//Reset the button on the left.
+					target = target - 1;
+					println!("useful - 1");
+				} else if panelitems[target + 1][0] == 41 {
+					//Reset the button on the right.
+					target = target + 1;
+					println!("useful + 1");
+				} else {
+					//Nope, nothing to reset here.
+					return
+				}
+			}
+			output = 44;
+		} else {
+			return
+		}
+        panelitems[target][0] = output;
+        *draw = output;
+        *elementreset = 255;
+    }
 }

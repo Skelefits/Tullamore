@@ -147,7 +147,7 @@ pub fn drawstartbutton<C: Connection>(xconnection: &C, window: u32, startx: i16,
 }
 
 pub fn drawdepressedbumpyframe<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_highcheckers: u32) -> Result<(), Box<dyn Error>> {
-	drawbumpyframe(&xconnection, window, startx, starty, framewidth, frameheight, gc_lowlight, gc_highlight, gc_highbackground, gc_highbackground)?;
+	drawbumpyframe(&xconnection, window, startx, starty, framewidth, frameheight, gc_lowlight, gc_highlight, 0, gc_highbackground)?;
 	
 	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_lowbackground, &[
 		Point { x: startx + 1, y: starty + frameheight - 2 },
@@ -157,10 +157,10 @@ pub fn drawdepressedbumpyframe<C: Connection>(xconnection: &C, window: u32, star
 	
 	if gc_highcheckers > 0 {
 	
-	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_highlight, &[
-		Point { x: startx + 2, y: 6 },
-		Point { x: framewidth - 4, y: 0 },
-	])?;
+		xconnection.poly_line(CoordMode::PREVIOUS, window, gc_highlight, &[
+			Point { x: startx + 2, y: 6 },
+			Point { x: framewidth - 4, y: 0 },
+		])?;
 	
 	
 		xconnection.poly_fill_rectangle(window, gc_highcheckers, &[Rectangle { x: startx + 2, y: starty + 3, width: framewidth as u16 - 3, height: frameheight as u16 - 4}])?;
@@ -186,8 +186,10 @@ pub fn drawbumpyframe<C: Connection>(xconnection: &C, window: u32, startx: i16, 
 		Point { x: framewidth - 2, y: 0 },
 		Point { x: 0, y: 2-frameheight },
 	])?;
-	xconnection.poly_fill_rectangle(window, gc_highbackground, &[Rectangle {x: startx + 1, y: starty + 1, width: (framewidth as u16) - 2, height: (frameheight as u16) - 2,}])?;
-    Ok(())
+	if gc_highbackground > 0 {
+		xconnection.poly_fill_rectangle(window, gc_highbackground, &[Rectangle {x: startx + 1, y: starty + 1, width: (framewidth as u16) - 2, height: (frameheight as u16) - 2,}])?;
+    }
+	Ok(())
 }
 
 pub fn drawdepressedframe<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
