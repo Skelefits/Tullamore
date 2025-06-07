@@ -169,6 +169,8 @@ pub fn drawdepressedbumpyframe<C: Connection>(xconnection: &C, window: u32, star
     Ok(())
 }
 
+
+
 pub fn drawbumpyframe<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
 	//Frame that dumps out.
 	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_lowlight, &[

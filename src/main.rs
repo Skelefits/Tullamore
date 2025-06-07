@@ -19,6 +19,10 @@ use x11rb::{
 };
 use std::collections::HashMap;
 
+mod programs {
+    pub mod booker;
+}
+
 mod window;
 use window::redrawframes;
 use window::updateborder;
@@ -86,6 +90,9 @@ fn grabexternalwindows<C: Connection>(xconnection: &C, wm: &mut WindowManager, r
     }
     Ok(())
 }
+
+const BORDER: u16 = 4;
+const TITLEBAR: u16 = 18;
 
 impl WindowManager {
     pub fn new() -> Self {
@@ -279,12 +286,12 @@ fn makexorpattern<C: Connection>(xconnection: &C, window: u32) -> Result<u32, Bo
     Ok(gc)
 }
 
-fn createwindow<C: Connection>(xconnection: &C, screen: &Screen, x: i16, y: i16, width: u16, height: u16, title: &[u8], reswidth: i16, resheight: i16, border: u16, titlebar: u16, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, windowmanager: &mut WindowManager) -> Result<Window, Box<dyn Error>> {
+fn createwindow<C: Connection>(xconnection: &C, screen: &Screen, x: i16, y: i16, width: u16, height: u16, title: &[u8], reswidth: i16, resheight: i16, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, windowmanager: &mut WindowManager) -> Result<Window, Box<dyn Error>> {
     let window = xconnection.generate_id()?;
     xconnection.create_window(COPY_DEPTH_FROM_PARENT, window, screen.root, x, y, width, height, 0, WindowClass::INPUT_OUTPUT, 0, &CreateWindowAux::new().background_pixel(screen.white_pixel).event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS))?;
     xconnection.change_property8(PropMode::REPLACE, window, AtomEnum::WM_NAME, AtomEnum::STRING, title)?;
     xconnection.change_window_attributes(window, &ChangeWindowAttributesAux::default().override_redirect(0))?;
-	let frame = createborder(xconnection, screen, window, reswidth, resheight, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+	let frame = createborder(xconnection, screen, window, reswidth, resheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
     xconnection.map_window(window)?;
     let state = WindowState {window, frame, title: String::from_utf8_lossy(title).to_string(), x, y, z: 0, width: width as i16, height: height as i16, map: 2, order: 0};
     windowmanager.insertwindow(state);
@@ -661,9 +668,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 	let gc_xorcheckers = makexorpattern(&xconnection, window)?;
 	
-	
-    let border = 4 as u16;
-    let titlebar = 18 as u16;
+
 
 	//test windows
 	
@@ -672,7 +677,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 	wm.fillblanks();
 
-	redrawframes(&xconnection, &wm, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+	redrawframes(&xconnection, &wm, panel, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 
 	
 	
@@ -807,7 +812,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						
 						wm.installexternalwindow(target.window, target.window, title, geom.x, geom.y, geom.width as i16, geom.height as i16, 0);
 						insertpanelwindow(&mut panelindex, target.window, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-							if let Ok(frame) = createwmborder(&xconnection, &screen, &wm, target.window, geom.width, geom.height, width, height, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext) {
+							if let Ok(frame) = createwmborder(&xconnection, &screen, &wm, target.window, geom.width, geom.height, width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext) {
 							if let Some(state) = wm.windows.get_mut(&target.window) {
 								state.frame = frame;
 							}
@@ -897,27 +902,33 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 								draw = state;
 								if index > 0 {
 									if index == 1 {
-										let test = createwindow(&xconnection, &screen, 100, 100, 200, 100, b"test1", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
+										let test = createwindow(&xconnection, &screen, 100, 100, 200, 100, b"test1", width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-										focuswindow(&mut wm, &xconnection, panel, test, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 										draw = 40;
 									} else if index == 2 {
-										let test = createwindow(&xconnection, &screen, 100, 100, 300, 200, b"test2", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
+										let test = createwindow(&xconnection, &screen, 100, 100, 300, 200, b"test2", width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-										focuswindow(&mut wm, &xconnection, panel, test, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 										draw = 40; 
 									} else if index == 3 {
-										let test = createwindow(&xconnection, &screen, 100, 100, 100, 100, b"test3", width, height, 4, 18, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
+										let test = createwindow(&xconnection, &screen, 100, 100, 100, 100, b"test3", width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-										focuswindow(&mut wm, &xconnection, panel, test, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 										draw = 40; 
+
+									} else if index == 4 {
+										draw = programs::booker::startprogram(&xconnection, &screen, panel, width, height, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm);
+										//spawn booker.rs instance here.
+										
+										
 
 									}
 									
 
 									
 									
-									redrawframes(&xconnection, &wm, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+									redrawframes(&xconnection, &wm, panel, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 								}
 								//Run the command for that link!
 							}
@@ -927,7 +938,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							windowactive = index as u8;
 							panelitems[index][0] = 43;
 							let client = panelwindows[index][0] as Window;
-							if let Some(state) = wm.getwindow(&client) { focuswindow(&mut wm, &xconnection, panel, client, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?; draw = elementtype; }
+							if let Some(state) = wm.getwindow(&client) { focuswindow(&mut wm, &xconnection, panel, client, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?; draw = elementtype; }
 						}
 					}
 				} else {
@@ -940,7 +951,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						
 
 						if y >= 7 && y <= 21 {
-							let edge = state.width + (2 * border as i16);
+							let edge = state.width + (2 * BORDER as i16);
 							if x >= edge - 54 && x < edge - 38 {
 								if let Some(client) = wm.frames.get(&release.event) {
 									if let Some(index) = panelwindows.iter().position(|w| w[0] == *client) {
@@ -969,7 +980,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 																	panelitems[checkindex as usize][0] = 43;
 																	
 																	
-																	focuswindow(&mut wm, &xconnection, panel, panelwindows[checkindex as usize][0] as Window, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+																	focuswindow(&mut wm, &xconnection, panel, panelwindows[checkindex as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 																	
 																	
 																	
@@ -989,7 +1000,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 																
 																panelitems[checkindex as usize][0] = 43;
 																
-																focuswindow(&mut wm, &xconnection, panel, panelwindows[checkindex as usize][0] as Window, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+																focuswindow(&mut wm, &xconnection, panel, panelwindows[checkindex as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 																
 																
 																break;
@@ -1004,7 +1015,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 												windowlast = 255;
 												
 												
-												focuswindow(&mut wm, &xconnection, panel, panelwindows[windowactive as usize][0] as Window, border, titlebar, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+												focuswindow(&mut wm, &xconnection, panel, panelwindows[windowactive as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 
 											}
 											
@@ -1047,7 +1058,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					drag = None;
 					origin = None;
 						//Redraw window frames.
-					redrawframes(&xconnection, &wm, panel, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+					redrawframes(&xconnection, &wm, panel, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
 					}
 					xconnection.flush()?;
 			}
@@ -1083,7 +1094,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						let mut paneltarget = target;
 						
 						
-						if target == frame && press.event_y < titlebar as i16 {
+						if target == frame && press.event_y < TITLEBAR as i16 {
 							moving = Some(frame);
 							drag = Some((press.root_x, press.root_y));
 							origin = Some((statex, statey));
@@ -1106,8 +1117,8 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						}	
 						
 						let redraw: Vec<(Window, Window, i16, i16)> = wm.windows.values().filter(|state| state.map == 2 || state.map == 3).map(|state| {
-						let fwidth = state.width + (2 * border as i16);
-						let fheight = state.height + (2 * border as i16) + (titlebar as i16); (state.frame, state.window, fwidth, fheight)}).collect();
+						let fwidth = state.width + (2 * BORDER as i16);
+						let fheight = state.height + (2 * BORDER as i16) + (TITLEBAR as i16); (state.frame, state.window, fwidth, fheight)}).collect();
 						for (frame, client, width, height) in redraw {
 							
 
@@ -1117,7 +1128,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							
 							
 							if frame != panel {
-								updateborder(&xconnection, frame, client, width, height, titlebar, border,gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground,gc_titlebar, gc_titlebartext)?;
+								updateborder(&xconnection, frame, client, width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground,gc_titlebar, gc_titlebartext)?;
 							}
 						}
 						//Draw the taskbar window buttons.
@@ -1482,13 +1493,13 @@ fn updateelement(target: usize, elementtype: u8, new: u8, panelitems: &mut [[u8;
     None
 }
 
-fn focuswindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Window, client: Window, border: u16, titlebar: u16, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext) -> Result<(), Box<dyn Error>> {
+fn focuswindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Window, client: Window, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext) -> Result<(), Box<dyn Error>> {
     if let Some(state) = wm.getwindow(&client) {
         let frame = state.frame;
         if state.map == 0 { xconnection.map_window(client)?; xconnection.map_window(frame)?; }
         wm.focus(&xconnection, frame, panel)?;
-        let redraw: Vec<(Window, Window, i16, i16)> = wm.windows.values().filter(|state| state.map == 2 || state.map == 3).map(|state| {let fwidth = state.width + (2 * border as i16); let fheight = state.height + (2 * border as i16) + (titlebar as i16); (state.frame, state.window, fwidth, fheight)}).collect();
-        for (frame, client, width, height) in redraw { if frame != panel { updateborder(&xconnection, frame, client, width, height, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?; } }
+        let redraw: Vec<(Window, Window, i16, i16)> = wm.windows.values().filter(|state| state.map == 2 || state.map == 3).map(|state| {let fwidth = state.width + (2 * BORDER as i16); let fheight = state.height + (2 * BORDER as i16) + (TITLEBAR as i16); (state.frame, state.window, fwidth, fheight)}).collect();
+        for (frame, client, width, height) in redraw { if frame != panel { updateborder(&xconnection, frame, client, width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?; } }
     }
     Ok(())
 }

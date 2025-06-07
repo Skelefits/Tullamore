@@ -18,6 +18,9 @@ use x11rb::{
     COPY_DEPTH_FROM_PARENT,
 };
 
+use crate::BORDER;
+use crate::TITLEBAR;
+
 use crate::trundle::windowborder;
 use crate::trundle::drawtitlebar;
 use crate::trundle::grabwindowtitle;
@@ -41,31 +44,31 @@ use crate::trundle::{
 
 
 
-pub fn redrawframes<C: Connection>(xconnection: &C, wm: &WindowManager, panel: Window, titlebar: u16, border: u16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_titlebar: u32, gc_titlebartext: u32) -> Result<(), Box<dyn Error>> {
+pub fn redrawframes<C: Connection>(xconnection: &C, wm: &WindowManager, panel: Window, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_titlebar: u32, gc_titlebartext: u32) -> Result<(), Box<dyn Error>> {
     for state in wm.windows.values() {
         if state.frame != panel {
-			//println!("[{}] Frame Details - Window: {:?}, Frame: {:?}, Title: '{}', Original Size: {}x{}, Border: {}, Titlebar: {}, Final Size: {}x{}", "Skelefits", state.window, state.frame, state.title, state.width, state.height, border, titlebar, state.width + (2 * border as i16), state.height + ((2 * border as i16) + titlebar as i16));
-            updateborder(xconnection, state.frame, state.window, state.width + (2 * border as i16), state.height + ((2 * border as i16) + titlebar as i16), titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext )?;
+			//println!("[{}] Frame Details - Window: {:?}, Frame: {:?}, Title: '{}', Original Size: {}x{}, BORDER: {}, TITLEBAR: {}, Final Size: {}x{}", "Skelefits", state.window, state.frame, state.title, state.width, state.height, border, titlebar, state.width + (2 * border as i16), state.height + ((2 * border as i16) + titlebar as i16));
+            updateborder(xconnection, state.frame, state.window, state.width + (2 * BORDER as i16), state.height + ((2 * BORDER as i16) + TITLEBAR as i16), gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext )?;
         }
     }
     Ok(())
 }
 
-pub fn createwmborder<C: Connection>(xconnection: &C, screen: &Screen, wm: &WindowManager, target: Window, width: u16, height: u16, screen_width: i16, screen_height: i16, border: u16, titlebar: u16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_titlebar: u32, gc_titlebartext: u32) -> Result<Window, Box<dyn Error>> {
+pub fn createwmborder<C: Connection>(xconnection: &C, screen: &Screen, wm: &WindowManager, target: Window, width: u16, height: u16, screen_width: i16, screen_height: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_titlebar: u32, gc_titlebartext: u32) -> Result<Window, Box<dyn Error>> {
     if let Some(state) = wm.getwindow(&target) {
-        let fwidth = (width + border + border) as i16;
-        let fheight = (height + titlebar + border + border) as i16;
+        let fwidth = (width + BORDER + BORDER) as i16;
+        let fheight = (height + TITLEBAR + BORDER + BORDER) as i16;
 
-        let fx = (state.x - border as i16).max(0).min(screen_width - fwidth);
-        let fy = (state.y - (titlebar as i16 - border as i16)).max(0).min(screen_height - fheight);
+        let fx = (state.x - BORDER as i16).max(0).min(screen_width - fwidth);
+        let fy = (state.y - (TITLEBAR as i16 - BORDER as i16)).max(0).min(screen_height - fheight);
 
         let frame = xconnection.generate_id()?;
         xconnection.create_window(COPY_DEPTH_FROM_PARENT, frame, screen.root, fx, fy, fwidth as u16, fheight as u16, 0, WindowClass::INPUT_OUTPUT, 0, &CreateWindowAux::new().background_pixel(COLOURS[HIGHBACKGROUND_COLOUR]).event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS | EventMask::POINTER_MOTION | EventMask::BUTTON_RELEASE))?;
         xconnection.configure_window(target, &ConfigureWindowAux::new().border_width(0))?;
-        xconnection.reparent_window(target, frame, border as i16, (border + titlebar) as i16)?;
+        xconnection.reparent_window(target, frame, BORDER as i16, (BORDER + TITLEBAR) as i16)?;
         xconnection.map_window(frame)?;
         xconnection.map_window(target)?;
-        updateborder(xconnection, frame, target, fwidth, fheight, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+        updateborder(xconnection, frame, target, fwidth, fheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
         xconnection.flush()?;
         Ok(frame)
     } else {
@@ -73,16 +76,16 @@ pub fn createwmborder<C: Connection>(xconnection: &C, screen: &Screen, wm: &Wind
     }
 }
 
-pub fn createborder(xconnection: &impl x11rb::connection::Connection, screen: &x11rb::protocol::xproto::Screen, target: u32, width: i16, height: i16, border: u16, titlebar: u16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_titlebar: u32, gc_titlebartext: u32) -> Result<u32, Box<dyn std::error::Error>> {
+pub fn createborder(xconnection: &impl x11rb::connection::Connection, screen: &x11rb::protocol::xproto::Screen, target: u32, width: i16, height: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_titlebar: u32, gc_titlebartext: u32) -> Result<u32, Box<dyn std::error::Error>> {
     if let Ok(geom) = xconnection.get_geometry(target)?.reply() {
 
 		//Calculate frame's dimensions.
-		let fwidth = geom.width + border + border;
-		let fheight = geom.height + titlebar + border + border;
+		let fwidth = geom.width + BORDER + BORDER;
+		let fheight = geom.height + TITLEBAR + BORDER + BORDER;
 
 		//Calculate frame's origin.
-		let fx = (geom.x - border as i16).max(0).min(width - fwidth as i16);
-		let fy = (geom.y - (titlebar - border) as i16).max(0).min(height - fheight as i16);
+		let fx = (geom.x - BORDER as i16).max(0).min(width - fwidth as i16);
+		let fy = (geom.y - (TITLEBAR - BORDER) as i16).max(0).min(height - fheight as i16);
 
 		//Create frame and put the target into into it.
 		let frame = xconnection.generate_id()?;
@@ -90,11 +93,10 @@ pub fn createborder(xconnection: &impl x11rb::connection::Connection, screen: &x
 		//Set the target's frame to 0, in case it has one for some reason.
 		xconnection.configure_window(target, &ConfigureWindowAux::new().border_width(0))?;
 
-		xconnection.reparent_window(target, frame, border as i16, (border + titlebar) as i16,)?;
+		xconnection.reparent_window(target, frame, BORDER as i16, (BORDER + TITLEBAR) as i16,)?;
 		xconnection.map_window(frame)?;
 		xconnection.map_window(target)?;
 
-        //dfupdateborder(xconnection, frame, target, fwidth as i16, fheight as i16, titlebar, border, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, )?;
 
 		xconnection.flush()?;
 		Ok(frame)
@@ -103,7 +105,7 @@ pub fn createborder(xconnection: &impl x11rb::connection::Connection, screen: &x
     }
 }
 
-pub fn updateborder<C: x11rb::connection::Connection>(xconnection: &C, frame: u32, target: u32, width: i16, height: i16, titlebar: u16, border: u16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_titlebar: u32, gc_titlebartext: u32) -> Result<(), Box<dyn std::error::Error>> {
+pub fn updateborder<C: x11rb::connection::Connection>(xconnection: &C, frame: u32, target: u32, width: i16, height: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_titlebar: u32, gc_titlebartext: u32) -> Result<(), Box<dyn std::error::Error>> {
     const TITLE_INSET: i16 = 8;
     const TEXT_Y_OFFSET: i16 = 1;
     let root = xconnection.setup().roots[0].root;
@@ -112,9 +114,9 @@ pub fn updateborder<C: x11rb::connection::Connection>(xconnection: &C, frame: u3
 	//println!("{}x{}", width, height);
     windowborder(xconnection, frame, width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
     let gc = if focused { gc_titlebar } else { gc_lowbackground };
-    drawtitlebar(xconnection, frame, width - TITLE_INSET, titlebar as i16, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc)?;
+    drawtitlebar(xconnection, frame, width - TITLE_INSET, TITLEBAR as i16, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc)?;
     let gc = if focused { gc_titlebartext } else { gc_highbackground };
-	drawtitletext(xconnection, frame, gc, target, TITLE_INSET, titlebar as i16 - TEXT_Y_OFFSET)?;
+	drawtitletext(xconnection, frame, gc, target, TITLE_INSET, TITLEBAR as i16 - TEXT_Y_OFFSET)?;
     Ok(())
 }
 

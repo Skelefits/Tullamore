@@ -1,0 +1,115 @@
+use std::{
+    error::Error,
+    fs::File,
+    io::{self, Read, BufReader},
+    thread,
+    time::{SystemTime, Duration},
+};
+use lazy_static::lazy_static;
+use png::Decoder;
+use x11rb::{
+    connection::Connection,
+    errors::ConnectionError,
+    protocol::{
+        Event,
+        xproto::{*, GX},
+    },
+    wrapper::ConnectionExt as _,
+    COPY_DEPTH_FROM_PARENT,
+};
+
+use crate::trundle::windowborder;
+use crate::trundle::drawtitlebar;
+use crate::trundle::grabwindowtitle;
+use crate::trundle::drawtitletext;
+use crate::trundle::squishtext;
+use crate::drawdepressedbumpyframe;
+use crate::insertpanelwindow;
+use crate::focuswindow;
+use crate::drawpng;
+use crate::drawbumpyframe;
+use crate::createwindow;
+use crate::WindowManager;
+
+
+pub fn startprogram(xconnection: &impl Connection, screen: &Screen, panel: Window, width: i16, height: i16, panelindex: &mut [u8; 6], panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32], gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, wm: &mut WindowManager) -> u8 { 
+	match createwindow(xconnection, screen, 50, 50, 560, 340, b"Booker", width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, wm) {
+		Ok(booker) => {
+			insertpanelwindow(panelindex, booker, panelitems, panelcoordinates, panelwindows, panelicons);
+			basicscreen(xconnection, booker, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground);
+			match focuswindow(wm, xconnection, panel, booker, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext) {
+				Ok(_) => 40,
+				Err(_) => 0,
+			}
+		},
+		Err(_) => 0,
+	}
+}
+
+
+
+
+
+pub fn basicscreen(xconnection: &impl Connection, booker: Window, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext) {
+	//Draw the background colour.
+	xconnection.poly_fill_rectangle(booker, gc_highbackground, &[Rectangle { x: 0, y: 0, width: 560, height: 340 }]);
+
+	
+	//Draw chapter info.
+	drawbookerframe(xconnection, booker, 8, 5, 182, 18, 1, gc_lowbackground, 0, 0, gc_highlight);
+	
+	//Draw left container.
+	drawbookerframe(xconnection, booker, 8, 26, 182, 306, 3, gc_lowbackground, 0, 0, gc_highlight);
+	
+	let width = 80;
+	let height = 65;
+	
+	//Draw the below in four rows of two.
+    for row in 0..4 {
+        for col in 0..2 {
+            let x = 16 + (col * (width + 6));
+            let y = 50 + (row * (height + 6));
+			drawbookerframe(xconnection, booker, x, y, width, height, 3, gc_highlight, gc_lowlight, 0, gc_lowbackground);
+        }
+    }
+}
+
+pub fn drawbookerframe<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, thickness: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
+	//This frame is a little more complicated.
+	//Optionally, draw a border of-1 on the top, and left, and +1 on the bottom and right.
+	if gc_lowlight > 0 {
+		xconnection.poly_line(CoordMode::PREVIOUS, window, gc_lowlight, &[
+			Point { x: startx, y: starty - 1 },
+			Point { x: framewidth - 1, y: 0 },
+			Point { x: 1, y: 1 },
+			Point { x: 0, y: frameheight - 1},
+			Point { x: -1, y: 1 },
+			Point { x: 1 - framewidth, y: 0 },
+			Point { x: -1, y: -1 },
+			Point { x: 0, y: 1 - frameheight},
+		])?;
+	}
+	//Start with a light background colour for the width and hight starting at startx and starty.
+	if gc_highbackground > 0 {
+		xconnection.poly_fill_rectangle(window, gc_highbackground, &[Rectangle {x: startx + thickness, y: starty + thickness, width: ((framewidth - thickness) as u16), height: ((frameheight - thickness) as u16),}])?;
+    }
+
+	
+
+	
+	//Draw two rectangles on the bottom and right using colour2 of defined thickness.
+	xconnection.poly_fill_rectangle(window, gc_lowbackground, &[Rectangle {x: startx + framewidth - thickness, y: starty, width: (thickness as u16), height: (frameheight as u16),}])?;
+	xconnection.poly_fill_rectangle(window, gc_lowbackground, &[Rectangle {x: startx, y: starty + frameheight - thickness, width: ((framewidth - thickness) as u16), height: (thickness as u16),}])?;
+	//Draw lines up to defined thickness of colour1 on the top and left.
+	
+	//Make loop for index, 0 to thickness
+	for index in 0..(thickness) {
+		xconnection.poly_line(CoordMode::PREVIOUS, window, gc_highlight, &[
+			Point { x: startx + framewidth - 2 - index, y: starty + index },
+			Point { x: index + index + 2 - framewidth, y: 0 },
+			Point { x: 0, y: frameheight - 2 - index - index},
+		])?;
+	}
+
+	Ok(())
+}
