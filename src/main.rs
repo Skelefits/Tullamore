@@ -23,6 +23,10 @@ mod programs {
     pub mod booker;
 }
 
+mod games {
+    pub mod superbun;
+}
+
 mod window;
 use window::redrawframes;
 use window::updateborder;
@@ -615,7 +619,8 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
 	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
 	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
-	addpanelicon(panelindex[2], "yo".to_string(), "yo".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
+	addpanelicon(panelindex[2], "Booker".to_string(), "Booker".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
+	addpanelicon(panelindex[2], "Superbun".to_string(), "Superbun".to_string(), "computer.png".to_string(), &mut panelicons, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows);
 
 	
 	
@@ -919,12 +924,9 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 									} else if index == 4 {
 										draw = programs::booker::startprogram(&xconnection, &screen, panel, width, height, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm);
-										//spawn booker.rs instance here.
-										
-										
-
+									} else if index == 5 {
+										draw = games::superbun::startprogram(&xconnection, &screen, panel, width, height, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm);
 									}
-									
 
 									
 									

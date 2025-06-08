@@ -370,3 +370,141 @@ pub fn updateclock<C: Connection>(xconnection: &C, window: u32, gc: u32, mut pho
 	}
     Ok((phour, cminute))
 }
+
+
+pub fn drawbookerframe<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, thickness: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
+	//This frame is a little more complicated.
+	//Optionally, draw a border of-1 on the top, and left, and +1 on the bottom and right.
+	if gc_lowlight > 0 {
+		xconnection.poly_line(CoordMode::PREVIOUS, window, gc_lowlight, &[
+			Point { x: startx, y: starty - 1 },
+			Point { x: framewidth - 1, y: 0 },
+			Point { x: 1, y: 1 },
+			Point { x: 0, y: frameheight - 1},
+			Point { x: -1, y: 1 },
+			Point { x: 1 - framewidth, y: 0 },
+			Point { x: -1, y: -1 },
+			Point { x: 0, y: 1 - frameheight},
+		])?;
+	}
+	//Start with a light background colour for the width and hight starting at startx and starty.
+	
+    let endx = startx + framewidth;
+    let endy = starty + frameheight;
+    let innerwidth = framewidth - thickness;
+    let innerheight = frameheight - thickness;
+    
+    let mut rects = Vec::with_capacity(3);
+    let mut rectgcs = Vec::with_capacity(3);
+	
+    if gc_highbackground > 0 {
+        rects.push(Rectangle {x: startx + thickness, y: starty + thickness, width: innerwidth as u16, height: innerheight as u16});
+        rectgcs.push(gc_highbackground);
+    }
+
+	//Draw two rectangles on the bottom and right using colour2 of defined thickness.
+    if gc_lowbackground > 0 {
+        rects.push(Rectangle {x: endx - thickness, y: starty, width: thickness as u16, height: frameheight as u16});
+        rectgcs.push(gc_lowbackground);
+        rects.push(Rectangle {x: startx, y: endy - thickness, width: innerwidth as u16, height: thickness as u16});
+        rectgcs.push(gc_lowbackground);
+    }
+	
+    if !rects.is_empty() {
+        let mut groups: std::collections::HashMap<u32, Vec<Rectangle>> = std::collections::HashMap::new();
+        
+        for (rect, gc) in rects.into_iter().zip(rectgcs.into_iter()) {
+            groups.entry(gc).or_insert_with(Vec::new).push(rect);
+        }
+        
+        for (gc, rectlist) in groups {
+            xconnection.poly_fill_rectangle(window, gc, &rectlist)?;
+        }
+    }
+	
+	//Draw lines up to defined thickness of colour1 on the top and left.
+	
+	//Make loop for index, 0 to thickness
+    if gc_highlight > 0 && thickness > 0 {
+        let mut points = Vec::with_capacity((thickness as usize) * 3);
+        
+        for index in 0..thickness {
+            points.extend_from_slice(&[
+                Point { x: endx - 2 - index, y: starty + index },
+                Point { x: index + index + 2 - framewidth, y: 0 },
+                Point { x: 0, y: frameheight - 2 - index - index },
+            ]);
+        }
+        
+        for chunk in points.chunks(3) {
+            xconnection.poly_line(CoordMode::PREVIOUS, window, gc_highlight, chunk)?;
+        }
+    }
+
+	Ok(())
+}
+
+pub fn drawradiobutton<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, size: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
+	//Draw radio button with diameter of size.
+    const ANGLE45: i16 = 2880;
+    const ANGLE180: i16 = 11520;
+    const ANGLE225: i16 = 14400;
+    const ANGLE360: i16 = 23040;
+    
+    let inner = size - 2;
+    let fill = size - 4;
+    
+    let mut arcs = Vec::with_capacity(4);
+    let mut gcs = Vec::with_capacity(4);
+    
+    if gc_lowbackground > 0 {
+        arcs.push(Arc { 
+            x: startx, y: starty, 
+            width: size as u16, height: size as u16, 
+            angle1: ANGLE45, angle2: ANGLE180 
+        });
+        gcs.push(gc_lowbackground);
+        
+        arcs.push(Arc { 
+            x: startx + 1, y: starty + 1, 
+            width: inner as u16, height: inner as u16, 
+            angle1: ANGLE225, angle2: ANGLE180 
+        });
+        gcs.push(gc_lowbackground);
+    }
+    
+    if gc_highlight > 0 {
+        arcs.push(Arc { 
+            x: startx, y: starty, 
+            width: size as u16, height: size as u16, 
+            angle1: ANGLE225, angle2: ANGLE180 
+        });
+        gcs.push(gc_highlight);
+    }
+    
+    if gc_lowlight > 0 {
+        arcs.push(Arc { 
+            x: startx + 1, y: starty + 1, 
+            width: inner as u16, height: inner as u16, 
+            angle1: ANGLE45, angle2: ANGLE180 
+        });
+        gcs.push(gc_lowlight);
+    }
+    
+    if !arcs.is_empty() {
+        let mut groups: std::collections::HashMap<u32, Vec<Arc>> = std::collections::HashMap::new();
+        
+        for (arc, gc) in arcs.into_iter().zip(gcs.into_iter()) {
+            groups.entry(gc).or_insert_with(Vec::new).push(arc);
+        }
+        
+        for (gc, arclist) in groups {
+            xconnection.poly_arc(window, gc, &arclist)?;
+        }
+    }
+    
+    //Center
+    xconnection.poly_fill_arc(window, gc_highlight, &[Arc {x: startx + 2, y: starty + 2, width: fill as u16, height: fill as u16, angle1: 0, angle2: ANGLE360}])?;
+    
+    Ok(())
+}
