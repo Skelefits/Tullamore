@@ -209,97 +209,6 @@ pub fn drawdepressedframe<C: Connection>(xconnection: &C, window: u32, startx: i
     Ok(())
 }
 
-pub fn drawpng<C: Connection>(xconnection: &C, window: u32, filename: &str, x: i16, y: i16, height: u16, width: u16, colour: Option<u32>) -> Result<(), Box<dyn Error>> {
-	//I only want to support one image type. I didn't want to use png, but all icon packs use png so it'll probably stay.
-	//Vector would be fun, but probably too resource intensive.
-
-    let file = match File::open(filename) {
-        Ok(f) => f,
-        Err(e) => {
-			//Colour square if we can't load the png.
-            eprintln!("Warning: Could not load image '{}': {}", filename, e);
-            let gc = xconnection.generate_id()?;
-            xconnection.create_gc(gc, window, &CreateGCAux::default().background(colour))?;
-            xconnection.poly_fill_rectangle(window, gc, &[Rectangle {x, y, width, height}])?;
-            xconnection.free_gc(gc)?;
-            return Ok(());
-        }
-    };
-	
-    let decoder = Decoder::new(BufReader::new(file));
-    let mut reader = decoder.read_info()?;
-
-    let mut buffer = vec![0; (height * width * 4) as usize];
-    reader.next_frame(&mut buffer)?;
-
-    let pixmap = xconnection.generate_id()?;
-    xconnection.create_pixmap(24, pixmap, window, width, height)?;
-
-    let gc_image = xconnection.generate_id()?;
-    xconnection.create_gc(gc_image, pixmap, &CreateGCAux::default().background(colour))?;
-
-    let bg_color = colour.unwrap_or(0x00000000);
-    let bg_r = ((bg_color >> 16) & 0xFF) as u8;
-    let bg_g = ((bg_color >> 8) & 0xFF) as u8;
-    let bg_b = (bg_color & 0xFF) as u8;
-    let bg_a = ((bg_color >> 24) & 0xFF) as u8;
-
-    let mut image_data = Vec::with_capacity((width as usize) * (height as usize) * 4);
-
-    let info = &reader.info();
-
-    if info.color_type == png::ColorType::Rgba {
-        //alpha channel
-        for chunk in buffer.chunks(4) {
-            let r = chunk[0];
-            let g = chunk[1];
-            let b = chunk[2];
-            let a = chunk[3];
-
-            if a == 0 {
-                //replace alpha with background colour
-                image_data.push(bg_b);
-                image_data.push(bg_g);
-                image_data.push(bg_r);
-                image_data.push(bg_a);
-            } else {
-                //dont replace, some icons are looking weird, may have to do more adjustment
-                image_data.push(b);
-                image_data.push(g);
-                image_data.push(r);
-                image_data.push(a);
-            }
-        }
-    } else if info.color_type == png::ColorType::Rgb {
-        //no alpha channel, is this ever going to be called? need to test or research icon packs
-        for chunk in buffer.chunks(3) {
-            let r = chunk[0];
-            let g = chunk[1];
-            let b = chunk[2];
-
-            image_data.push(b);
-            image_data.push(g);
-            image_data.push(r);
-            image_data.push(255);
-        }
-    } else {
-        //format not found
-        
-		println!("Unsupported: {:?}", info.color_type);
-        return Ok(());
-    }
-
-    xconnection.put_image(ImageFormat::Z_PIXMAP, pixmap, gc_image, width, height, 0, 0, 0, 24, &image_data)?;
-
-    xconnection.copy_area( pixmap, window, gc_image, 0, 0, x, y, width, height,)?;
-
-    xconnection.free_pixmap(pixmap)?;
-    xconnection.free_gc(gc_image)?;
-    xconnection.flush()?;
-
-    Ok(())
-}
-
 pub fn drawclock<C: Connection>(xconnection: &C, window: u32, gc_lowlight: u32, width: i16, clockheight: i16) -> Result<(u64, u8, u8), Box<dyn Error>> {
     //Clock separator.
     xconnection.poly_point(CoordMode::PREVIOUS, window, gc_lowlight, &[ 
@@ -507,4 +416,284 @@ pub fn drawradiobutton<C: Connection>(xconnection: &C, window: u32, startx: i16,
     xconnection.poly_fill_arc(window, gc_highlight, &[Arc {x: startx + 2, y: starty + 2, width: fill as u16, height: fill as u16, angle1: 0, angle2: ANGLE360}])?;
     
     Ok(())
+}
+
+pub fn drawcheckbox<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, size: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
+    
+    let inner = size - 2;
+    let fill = size - 4;
+    
+    if gc_lowbackground > 0 {
+        xconnection.poly_fill_rectangle(window, gc_lowbackground, &[Rectangle {
+            x: startx,
+            y: starty,
+            width: size as u16,
+            height: size as u16,
+        }])?;
+    }
+    
+    let mut segments = Vec::new();
+    let mut gcs = Vec::new();
+    
+    if gc_lowbackground > 0 {
+        //Outer Top
+        segments.push(Segment {
+            x1: startx,
+            y1: starty,
+            x2: startx + size - 1,
+            y2: starty,
+        });
+        gcs.push(gc_lowbackground);
+        
+        //Outer Left
+        segments.push(Segment {
+            x1: startx,
+            y1: starty,
+            x2: startx,
+            y2: starty + size - 1,
+        });
+        gcs.push(gc_lowbackground);
+    }
+    
+    if gc_lowlight > 0 {
+        //Inner Top
+        segments.push(Segment {
+            x1: startx + 1,
+            y1: starty + 1,
+            x2: startx + size - 2,
+            y2: starty + 1,
+        });
+        gcs.push(gc_lowlight);
+        
+        //Inner Left
+        segments.push(Segment {
+            x1: startx + 1,
+            y1: starty + 1,
+            x2: startx + 1,
+            y2: starty + size - 2,
+        });
+        gcs.push(gc_lowlight);
+    }
+    
+    if gc_highlight > 0 {
+        //Outer Bottom
+        segments.push(Segment {
+            x1: startx,
+            y1: starty + size - 1,
+            x2: startx + size - 1,
+            y2: starty + size - 1,
+        });
+        gcs.push(gc_highlight);
+        
+        //Outer Right
+        segments.push(Segment {
+            x1: startx + size - 1,
+            y1: starty,
+            x2: startx + size - 1,
+            y2: starty + size - 1,
+        });
+        gcs.push(gc_highlight);
+        
+        //Inner Bottom
+        segments.push(Segment {
+            x1: startx + 1,
+            y1: starty + size - 2,
+            x2: startx + size - 2,
+            y2: starty + size - 2,
+        });
+        gcs.push(gc_highbackground);
+        
+        //Inner Right
+        segments.push(Segment {
+            x1: startx + size - 2,
+            y1: starty + 1,
+            x2: startx + size - 2,
+            y2: starty + size - 2,
+        });
+        gcs.push(gc_highbackground);
+    }
+    
+    if !segments.is_empty() {
+        let mut groups: std::collections::HashMap<u32, Vec<Segment>> = std::collections::HashMap::new();
+        
+        for (segment, gc) in segments.into_iter().zip(gcs.into_iter()) {
+            groups.entry(gc).or_insert_with(Vec::new).push(segment);
+        }
+        
+        for (gc, seglist) in groups {
+            xconnection.poly_segment(window, gc, &seglist)?;
+        }
+    }
+    
+    if gc_highlight > 0 && fill > 0 {
+        xconnection.poly_fill_rectangle(window, gc_highlight, &[Rectangle {
+            x: startx + 2,
+            y: starty + 2,
+            width: fill as u16,
+            height: fill as u16,
+        }])?;
+    }
+    
+    Ok(())
+}
+
+fn drawpnginternal<C: Connection>(xconnection: &C, window: u32, filename: &str, x: i16, y: i16, width: u16, height: u16, colour: Option<u32>, scale_mode: u8) -> Result<(), Box<dyn Error>> {
+    let file = match File::open(filename) {
+        Ok(f) => f,
+        Err(e) => {
+            // Colour square if we can't load the png.
+            eprintln!("Can't Load Image: '{}': {}", filename, e);
+            let gc = xconnection.generate_id()?;
+            xconnection.create_gc(gc, window, &CreateGCAux::default().background(colour))?;
+            xconnection.poly_fill_rectangle(window, gc, &[Rectangle {x, y, width, height}])?;
+            xconnection.free_gc(gc)?;
+            return Ok(());
+        }
+    };
+    
+    let decoder = Decoder::new(BufReader::new(file));
+    let mut reader = decoder.read_info()?;
+    let srcwidth = reader.info().width as usize;
+    let srcheight = reader.info().height as usize;
+    let colortype = reader.info().color_type;
+    let mut buffer = vec![0; srcwidth * srcheight * 4];
+    reader.next_frame(&mut buffer)?;
+    
+    let pixmap = xconnection.generate_id()?;
+    xconnection.create_pixmap(24, pixmap, window, width, height)?;
+    let gcimage = xconnection.generate_id()?;
+    xconnection.create_gc(gcimage, pixmap, &CreateGCAux::default().background(colour))?;
+    
+    let bgcolour = colour.unwrap_or(0x00000000);
+    let bg = [
+        (bgcolour & 0xFF) as u8,
+        ((bgcolour >> 8) & 0xFF) as u8, 
+        ((bgcolour >> 16) & 0xFF) as u8,
+        ((bgcolour >> 24) & 0xFF) as u8,
+    ];
+    
+    let targetwidth = width as usize;
+    let targetheight = height as usize;
+    let pixelcount = targetwidth * targetheight;
+    let mut imagedata = Vec::with_capacity(pixelcount * 4);
+    
+    if scale_mode == 0 {
+        // Fast path: No scaling - direct pixel copy with clipping
+        if colortype == png::ColorType::Rgba {
+            for targety in 0..targetheight {
+                for targetx in 0..targetwidth {
+                    if targetx < srcwidth && targety < srcheight {
+                        let idx = (targety * srcwidth + targetx) * 4;
+                        let r = buffer[idx];
+                        let g = buffer[idx + 1];
+                        let b = buffer[idx + 2];
+                        let a = buffer[idx + 3];
+                        
+                        match a {
+                            0 => imagedata.extend_from_slice(&bg),
+                            255 => imagedata.extend_from_slice(&[b, g, r, 255]),
+                            _ => {
+                                let alphaf = a as f32 / 255.0;
+                                let invalpha = 1.0 - alphaf;
+                                let blendedb = ((b as f32 * alphaf) + (bg[0] as f32 * invalpha)) as u8;
+                                let blendedg = ((g as f32 * alphaf) + (bg[1] as f32 * invalpha)) as u8;
+                                let blendedr = ((r as f32 * alphaf) + (bg[2] as f32 * invalpha)) as u8;
+                                imagedata.extend_from_slice(&[blendedb, blendedg, blendedr, 255]);
+                            }
+                        }
+                    } else {
+                        imagedata.extend_from_slice(&bg);
+                    }
+                }
+            }
+        } else if colortype == png::ColorType::Rgb {
+            for targety in 0..targetheight {
+                for targetx in 0..targetwidth {
+                    if targetx < srcwidth && targety < srcheight {
+                        let idx = (targety * srcwidth + targetx) * 3;
+                        let r = buffer[idx];
+                        let g = buffer[idx + 1];
+                        let b = buffer[idx + 2];
+                        imagedata.extend_from_slice(&[b, g, r, 255]);
+                    } else {
+                        imagedata.extend_from_slice(&bg);
+                    }
+                }
+            }
+        } else {
+            println!("Unsupported: {:?}", colortype);
+            return Ok(());
+        }
+    } else {
+        // Cover scaling with aspect ratio preservation
+        let srcaspect = srcwidth as f32 / srcheight as f32;
+        let targetaspect = targetwidth as f32 / targetheight as f32;
+        
+        let (scale, offsetx, offsety) = if srcaspect > targetaspect {
+            let scale = targetheight as f32 / srcheight as f32;
+            let scaledwidth = (srcwidth as f32 * scale) as usize;
+            let offsetx = (scaledwidth.saturating_sub(targetwidth)) / 2;
+            (scale, offsetx, 0)
+        } else {
+            let scale = targetwidth as f32 / srcwidth as f32;
+            let scaledheight = (srcheight as f32 * scale) as usize;
+            let offsety = (scaledheight.saturating_sub(targetheight)) / 2;
+            (scale, 0, offsety)
+        };
+        
+        let getsrcpixel = |srcx: usize, srcy: usize| -> (u8, u8, u8, u8) {
+            if srcx >= srcwidth || srcy >= srcheight {
+                return (0, 0, 0, 0);
+            }
+            let idx = (srcy * srcwidth + srcx) * 4;
+            if colortype == png::ColorType::Rgba {
+                (buffer[idx], buffer[idx + 1], buffer[idx + 2], buffer[idx + 3])
+            } else if colortype == png::ColorType::Rgb {
+                let rgbidx = (srcy * srcwidth + srcx) * 3;
+                (buffer[rgbidx], buffer[rgbidx + 1], buffer[rgbidx + 2], 255)
+            } else {
+                (0, 0, 0, 0)
+            }
+        };
+        
+        for targety in 0..targetheight {
+            for targetx in 0..targetwidth {
+                let srcx = (((targetx + offsetx) as f32) / scale) as usize;
+                let srcy = (((targety + offsety) as f32) / scale) as usize;
+                
+                let (r, g, b, a) = getsrcpixel(srcx, srcy);
+                
+                match a {
+                    0 => imagedata.extend_from_slice(&bg),
+                    255 => imagedata.extend_from_slice(&[b, g, r, 255]),
+                    _ => {
+                        let alphaf = a as f32 / 255.0;
+                        let invalpha = 1.0 - alphaf;
+                        let blendedb = ((b as f32 * alphaf) + (bg[0] as f32 * invalpha)) as u8;
+                        let blendedg = ((g as f32 * alphaf) + (bg[1] as f32 * invalpha)) as u8;
+                        let blendedr = ((r as f32 * alphaf) + (bg[2] as f32 * invalpha)) as u8;
+                        imagedata.extend_from_slice(&[blendedb, blendedg, blendedr, 255]);
+                    }
+                }
+            }
+        }
+    }
+    
+    xconnection.put_image(ImageFormat::Z_PIXMAP, pixmap, gcimage, width, height, 0, 0, 0, 24, &imagedata)?;
+    xconnection.copy_area(pixmap, window, gcimage, 0, 0, x, y, width, height)?;
+    xconnection.free_pixmap(pixmap)?;
+    xconnection.free_gc(gcimage)?;
+    xconnection.flush()?;
+    Ok(())
+}
+
+pub fn drawpng<C: Connection>(xconnection: &C, window: u32, filename: &str, x: i16, y: i16, width: u16, height: u16, colour: Option<u32>) -> Result<(), Box<dyn Error>> {
+    // I only want to support one image type. I didn't want to use png, but all icon packs use png so it'll probably stay.
+    // Vector would be fun, but probably too resource intensive.
+    // Fast path: no scaling for embedded performance
+    drawpnginternal(xconnection, window, filename, x, y, width, height, colour, 0)
+}
+
+pub fn drawpngcover<C: Connection>(xconnection: &C, window: u32, filename: &str, x: i16, y: i16, width: u16, height: u16, colour: Option<u32>) -> Result<(), Box<dyn Error>> {
+    drawpnginternal(xconnection, window, filename, x, y, width, height, colour, 1)
 }

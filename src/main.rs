@@ -43,6 +43,7 @@ use trundle::drawdepressedbumpyframe;
 use trundle::drawdepressedframe;
 use trundle::drawstartbutton;
 use trundle::drawpng;
+use trundle::drawpngcover;
 use trundle::drawclock;
 use trundle::updateclock;
 use trundle::squishtext;
@@ -747,6 +748,8 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	let mut windowlast = 255 as u8;
 
 	let mut sleep = true;
+	
+	let mut game = 0 as Window;
 
     loop {
 		
@@ -910,23 +913,20 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 										let test = createwindow(&xconnection, &screen, 100, 100, 200, 100, b"test1", width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
 										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
-										draw = 40;
 									} else if index == 2 {
 										let test = createwindow(&xconnection, &screen, 100, 100, 300, 200, b"test2", width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
 										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
-										draw = 40; 
 									} else if index == 3 {
 										let test = createwindow(&xconnection, &screen, 100, 100, 100, 100, b"test3", width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
 										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
-										draw = 40; 
-
 									} else if index == 4 {
 										draw = programs::booker::startprogram(&xconnection, &screen, panel, width, height, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm);
 									} else if index == 5 {
-										draw = games::superbun::startprogram(&xconnection, &screen, panel, width, height, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm);
+										game = games::superbun::startprogram(&xconnection, &screen, panel, width, height, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm);
 									}
+									draw = 40; 
 
 									
 									
