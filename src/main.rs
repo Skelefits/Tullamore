@@ -145,11 +145,29 @@ impl WindowManager {
             .and_then(|window| self.windows.get(window))
     }
 
-    pub fn removewindow(&mut self, window: &Window) {
-        if let Some(state) = self.windows.remove(window) {
-            self.frames.remove(&state.frame);
+pub fn removewindow(&mut self, window: &Window) {
+    if let Some(state) = self.windows.remove(window) {
+        // Input was a client window
+        println!("Window removed: {:?}", window);
+        if self.frames.remove(&state.frame).is_some() {
+            println!("Frame removed: {:?}", state.frame);
+        } else {
+            println!("Frame not found for removal: {:?}", state.frame);
         }
+    } else if let Some(client) = self.frames.get(window) {
+        // Input was a frame window, so look up the client
+        if let Some(state) = self.windows.remove(client) {
+            println!("Window removed (via frame): {:?}", client);
+            if self.frames.remove(&state.frame).is_some() {
+                println!("Frame removed (via frame): {:?}", state.frame);
+            } else {
+                println!("Frame not found for removal (via frame): {:?}", state.frame);
+            }
+        }
+    } else {
+        println!("Window/frame not found: {:?}", window);
     }
+}
 	
     pub fn fillblanks(&mut self) {
         let mut max = 0;
@@ -467,24 +485,19 @@ fn insertpanelicon(mut index: usize, panelindex: &mut [u8; 6], icon: u32, paneli
 	
 	updatepanelindex(2, panelindex); //Increment indexes from the end of the link area.
 	
-	
-	
-	
+
 	if index == 0 {
 		index = 1;
 	}
-	
 
-	
 	shiftpanelicon(index, panelindex, panelitems, panelcoordinates, panelwindows, panelicons);
-	
-	
 	
     panelitems[index] = [30];
     panelcoordinates[index] = [panelcoordinates[index][0], 23];
     panelwindows[index] = [icon];
 	
 }
+
 
 
 fn insertpanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
@@ -540,10 +553,7 @@ fn insertpanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u
 			}
 		}
 	}
-	
-	
-	
-	
+
 }
 
 
@@ -968,58 +978,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 											
 											println!("windowactive {} windowlast {}", windowactive, windowlast);
 											
-											if windowlast == 255 || windowlast == windowactive {
-												let loopindex = index as u8;
-												for i in 1..=5 {  //Check left and right five windows for one we can focus on.
-													//Left side!
-													if let Some(checkindex) = loopindex.checked_sub(i) {
-														if checkindex >= 0 && (checkindex as usize) < panelwindows.len() {
-															if let Some(window) = wm.windows.get_mut(&panelwindows[checkindex as usize][0]) {
-																println!("Window.Map {} {}", window.map, checkindex);
-																if window.map == 3 {
-																	window.map = 2;
-																	
-																	panelitems[checkindex as usize][0] = 43;
-																	
-																	
-																	focuswindow(&mut wm, &xconnection, panel, panelwindows[checkindex as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
-																	
-																	
-																	
-																	
-																	break;
-																}
-															}
-														}
-													}
-													//Right side!
-													let checkindex = loopindex + i;
-													if (checkindex as usize) < panelwindows.len() {
-														if let Some(window) = wm.windows.get_mut(&panelwindows[checkindex as usize][0]) {
-															println!("Window.Map {} {}", window.map, checkindex);
-															if window.map == 3 {
-																window.map = 2;
-																
-																panelitems[checkindex as usize][0] = 43;
-																
-																focuswindow(&mut wm, &xconnection, panel, panelwindows[checkindex as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
-																
-																
-																break;
-															}
-														}
-													}
-												}
-											} else {
-												
-												windowactive = windowlast;
-												panelitems[windowactive as usize][0] = 43;
-												windowlast = 255;
-												
-												
-												focuswindow(&mut wm, &xconnection, panel, panelwindows[windowactive as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
-
-											}
+											swapwindow(&mut wm, &xconnection, panel, &panelwindows, &mut panelitems, &mut windowactive, &mut windowlast, index, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,)?;
 											
 										}
 									}
@@ -1028,8 +987,25 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							
 							
 
-							//Close the window!
+								//Close the window!
 
+								wm.removewindow(&release.event);
+								let index = 0 as usize;
+								
+								//Find the closing window in the panel.
+								for i in panelindex[3]..=panelindex[4] {
+								
+									//if panelwindows[i] == window {
+										//delete entry from panelwindows...
+										
+										//removepanelwindow(&mut panelindex, target.window, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+										
+									//}
+								}
+								
+								//Get window id and match it with panel item. Default to last panel window if nothing is returned.
+								
+								swapwindow(&mut wm, &xconnection, panel, &panelwindows, &mut panelitems, &mut windowactive, &mut windowlast, index, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,)?;
 
 							
 							}
@@ -1283,7 +1259,15 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						44 => {
 							println!("so far so good");
 							panelitems[i][0] = 40;
-							drawwindowbuttons(&xconnection, panel, panelitems[i][0], &wm.getwindow(&(panelwindows[i][0] as Window)).unwrap().title, panelcoordinates[i][0], panelcoordinates[i][1], gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+							
+							if let Some(state) = wm.getwindow(&(panelwindows[i][0] as Window)) {
+								drawwindowbuttons(&xconnection, panel, panelitems[i][0], &state.title, panelcoordinates[i][0], panelcoordinates[i][1], gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+							} else {
+								println!("ERROR 44: No window state for panel window {} at index {}.",	panelwindows[i][0], i);
+							}
+							
+							
+							
 							//drawbumpyframe(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, 0, gc_lowbackground)?;
 						}
 						_ => {
@@ -1300,7 +1284,11 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					println!("i {} panelitems[i][0] {}", i, panelitems[i][0]);
 					if panelitems[i][0] >= 40 && panelitems[i][0] < 45 {
 						//startx: i16, starty: i16, framewidth: i16, frameheight: i1
-						drawwindowbuttons(&xconnection, panel, panelitems[i][0], &wm.getwindow(&(panelwindows[i][0] as Window)).unwrap().title, panelcoordinates[i][0], panelcoordinates[i][1], gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+						if let Some(state) = wm.getwindow(&(panelwindows[i][0] as Window)) {
+							drawwindowbuttons(&xconnection, panel, panelitems[i][0], &state.title, panelcoordinates[i][0], panelcoordinates[i][1], gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+						} else {
+							println!("ERROR 40: No window state for panel window {} at index {}.",	panelwindows[i][0], i);
+						}
 						if panelitems[i][0] == 44 {
 							panelitems[i][0] = 40;
 						}
@@ -1539,5 +1527,102 @@ fn resetpanelelement(draw: &mut u8, elementreset: &mut u8, panelitems: &mut [[u8
         panelitems[target][0] = output;
         *draw = output;
         *elementreset = 255;
+    }
+}
+
+fn swapwindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Window, panelwindows: &[[u32; 1]; 128], panelitems: &mut [[u8; 1]; 128], windowactive: &mut u8, windowlast: &mut u8, index: usize, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext,) -> Result<(), Box<dyn Error>> {
+    if *windowlast == 255 || *windowlast == *windowactive {
+        let loopindex = index as u8;
+        for i in 1..=5 {
+            if let Some(checkindex) = loopindex.checked_sub(i) {
+                if (checkindex as usize) < panelwindows.len() {
+                    if let Some(window) = wm.windows.get_mut(&(panelwindows[checkindex as usize][0] as Window)) {
+                        println!("Window.Map {} {}", window.map, checkindex);
+                        if window.map == 3 {
+                            window.map = 2;
+                            panelitems[checkindex as usize][0] = 43;
+                            focuswindow(
+                                wm, xconnection, panel, panelwindows[checkindex as usize][0] as Window,
+                                gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,
+                            )?;
+                            break;
+                        }
+                    }
+                }
+            }
+            let checkindex = loopindex + i;
+            if (checkindex as usize) < panelwindows.len() {
+                if let Some(window) = wm.windows.get_mut(&(panelwindows[checkindex as usize][0] as Window)) {
+                    println!("Window.Map {} {}", window.map, checkindex);
+                    if window.map == 3 {
+                        window.map = 2;
+                        panelitems[checkindex as usize][0] = 43;
+                        focuswindow(
+                            wm, xconnection, panel, panelwindows[checkindex as usize][0] as Window,
+                            gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,
+                        )?;
+                        break;
+                    }
+                }
+            }
+        }
+    } else {
+        *windowactive = *windowlast;
+        panelitems[*windowactive as usize][0] = 43;
+        *windowlast = 255;
+        focuswindow(
+            wm, xconnection, panel, panelwindows[*windowactive as usize][0] as Window,
+            gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,
+        )?;
+    }
+    Ok(())
+}
+
+fn removepanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
+    //Find the index of the window to remove in the window panel area
+    let windowstart = panelindex[3] as usize;
+    let windowend = panelindex[5] as usize;
+    let mut remove_index: Option<usize> = None;
+    for i in windowstart..windowend {
+        if panelwindows[i][0] == window {
+            remove_index = Some(i);
+            break;
+        }
+    }
+    if let Some(index) = remove_index {
+        //Shift panel icons/windows left to remove the window
+        for i in index..windowend - 1 {
+            panelitems[i] = panelitems[i + 1];
+            panelcoordinates[i] = panelcoordinates[i + 1];
+            panelwindows[i] = panelwindows[i + 1];
+        }
+        //Clear the last one in the window area
+        panelitems[windowend - 1] = [0];
+        panelcoordinates[windowend - 1] = [0, 0];
+        panelwindows[windowend - 1] = [0];
+
+        //Decrement panelindex[4] (window area end) and panelindex[5] (notification area start)
+        if panelindex[4] > 0 {
+            panelindex[4] -= 1;
+        }
+        if panelindex[5] > 0 {
+            panelindex[5] -= 1;
+        }
+
+        //Recalculate coordinates and widths for remaining window buttons
+        let tray = panelcoordinates[panelindex[5] as usize][0];
+        let windowstart = panelindex[3] as usize;
+        let windowend = panelindex[5] as usize;
+        let startx = panelcoordinates[windowstart][0];
+        let endx = tray;
+        let count = (windowend - windowstart) as i16;
+        if count > 0 {
+            let width = ((endx - startx) / count) - 3;
+            let mut x = startx;
+            for i in windowstart..windowend {
+                panelcoordinates[i] = [x, width];
+                x += width + 3;
+            }
+        }
     }
 }
