@@ -145,29 +145,30 @@ impl WindowManager {
             .and_then(|window| self.windows.get(window))
     }
 
-pub fn removewindow(&mut self, window: &Window) {
-    if let Some(state) = self.windows.remove(window) {
-        // Input was a client window
-        println!("Window removed: {:?}", window);
-        if self.frames.remove(&state.frame).is_some() {
-            println!("Frame removed: {:?}", state.frame);
-        } else {
-            println!("Frame not found for removal: {:?}", state.frame);
+
+    pub fn getwindowids(&self, window: &Window) -> Option<(Window, Window)> {
+        match (self.windows.contains_key(window), self.frames.get(window)) {
+            (true, _) => {
+                //Client window, get frame from WindowState.
+                self.windows.get(window).map(|state| (state.frame, *window))
+            },
+            (_, Some(client)) => {
+                //Frame window, client is known.
+                Some((*window, *client))
+            },
+            _ => None
         }
-    } else if let Some(client) = self.frames.get(window) {
-        // Input was a frame window, so look up the client
-        if let Some(state) = self.windows.remove(client) {
-            println!("Window removed (via frame): {:?}", client);
-            if self.frames.remove(&state.frame).is_some() {
-                println!("Frame removed (via frame): {:?}", state.frame);
-            } else {
-                println!("Frame not found for removal (via frame): {:?}", state.frame);
-            }
-        }
-    } else {
-        println!("Window/frame not found: {:?}", window);
     }
-}
+
+	pub fn removewindow<C: Connection>(&mut self, xconnection: &C, frame: Window, client: Window) -> Result<(), Box<dyn Error>> {
+		if self.windows.remove(&client).is_some() {
+			xconnection.unmap_window(client)?;
+			xconnection.unmap_window(frame)?;
+			self.frames.remove(&frame);
+			println!("Removed frame {:?} and client {:?}", frame, client);
+		}
+		Ok(())
+	}
 	
     pub fn fillblanks(&mut self) {
         let mut max = 0;
@@ -986,28 +987,32 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							} if x >= edge - 22 && x < edge - 6 {
 							
 							
+								//Get the frame and client.
+								if let Some((frame, client)) = wm.getwindowids(&release.event) {
+									//Close the window!
+									wm.removewindow(&xconnection, frame, client);
+									
+									//let mut index = 0 as usize;
+									
+									//Find the closing window in the panel.
+									
+		
 
-								//Close the window!
-
-								wm.removewindow(&release.event);
-								let index = 0 as usize;
-								
-								//Find the closing window in the panel.
-								for i in panelindex[3]..=panelindex[4] {
-								
-									//if panelwindows[i] == window {
-										//delete entry from panelwindows...
-										
-										//removepanelwindow(&mut panelindex, target.window, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-										
-									//}
+									
+									
+									for i in (panelindex[3] as usize..=(panelindex[4] as usize)) {
+										println!("looking in {} for {}, found {}", i, client, panelwindows[i][0]);
+										if panelwindows[i][0] == client {
+											println!("found it {}", client);
+											//index = i;
+											swapwindow(&mut wm, &xconnection, panel, &panelwindows, &mut panelitems, &mut windowactive, &mut windowlast, i, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,)?;
+											//Remove window from the panel.
+											//FIX, TODO, FIXME, this part isn't removing the correct index?
+											removepanelwindow(&mut panelindex, client, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+											break;
+										}
+									}
 								}
-								
-								//Get window id and match it with panel item. Default to last panel window if nothing is returned.
-								
-								swapwindow(&mut wm, &xconnection, panel, &panelwindows, &mut panelitems, &mut windowactive, &mut windowlast, index, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,)?;
-
-							
 							}
 							
 							
