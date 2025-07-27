@@ -58,8 +58,6 @@ use trundle::{
     TITLEBAR_COLOUR
 };
 
-
-
 struct WindowState {
     window: Window,
     frame: Window,
@@ -538,13 +536,13 @@ fn insertpanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u
 	if currentx + previouswidth < tray {
 		panelcoordinates[index] = [currentx + 3, previouswidth];
 	} else {
-		// Window buttons go into the notification area. Let's calculate a new width for them.
+		//Window buttons go into the notification area. Let's calculate a new width for them.
 		let windowstart = panelindex[3] as usize;
+		//The window area ends where the notification area begins.
 		let windowend = panelindex[5] as usize;
 		let startx = panelcoordinates[windowstart][0];
 		let endx = tray;
 		let count = (windowend - windowstart) as i16;
-		// Avoid division by zero (shouldn't happen if indices are correct)
 		if count > 0 {
 			let width = ((endx - startx) / count) - 3;
 			let mut x = startx;
@@ -592,6 +590,8 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	
 	let mut wm = WindowManager::new();
 	
+	//This code is freakin' aweful. Really needs a refactor, but need a MVP before the refactor.
+
     let (xconnection, screenid) = x11rb::connect(Some(":0"))?;
     let screen = &xconnection.setup().roots[screenid];
 	
@@ -965,7 +965,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 						if y >= 7 && y <= 21 {
 							let edge = state.width + (2 * BORDER as i16);
-							if x >= edge - 54 && x < edge - 38 {
+							if x >= edge - 54 && x < edge - 38 { //Min button!
 								if let Some(client) = wm.frames.get(&release.event) {
 									if let Some(index) = panelwindows.iter().position(|w| w[0] == *client) {
 										if let Some(target) = wm.windows.get_mut(client) {
@@ -984,10 +984,10 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 										}
 									}
 								}
-							} if x >= edge - 22 && x < edge - 6 {
+							} if x >= edge - 22 && x < edge - 6 { //Close button!
 							
 							
-								//Get the frame and client.
+								//Get the frame and client windows.
 								if let Some((frame, client)) = wm.getwindowids(&release.event) {
 									//Close the window!
 									wm.removewindow(&xconnection, frame, client);
@@ -1614,20 +1614,20 @@ fn removepanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u
             panelindex[5] -= 1;
         }
 
-        //Recalculate coordinates and widths for remaining window buttons
-        let tray = panelcoordinates[panelindex[5] as usize][0];
-        let windowstart = panelindex[3] as usize;
-        let windowend = panelindex[5] as usize;
-        let startx = panelcoordinates[windowstart][0];
-        let endx = tray;
-        let count = (windowend - windowstart) as i16;
-        if count > 0 {
-            let width = ((endx - startx) / count) - 3;
-            let mut x = startx;
-            for i in windowstart..windowend {
-                panelcoordinates[i] = [x, width];
-                x += width + 3;
-            }
-        }
+        //Size has changed, recalc window button coords.
+        //let tray = panelcoordinates[panelindex[5] as usize][0];
+        //let windowstart = panelindex[3] as usize;
+        //let windowend = panelindex[5] as usize;
+        //let startx = panelcoordinates[windowstart][0];
+        //let endx = tray;
+        //let count = (windowend - windowstart) as i16;
+        //if count > 0 {
+        //    let width = ((endx - startx) / count) - 3;
+        //    let mut x = startx;
+        //    for i in windowstart..windowend {
+        //        panelcoordinates[i] = [x, width];
+        //        x += width + 3;
+        //    }
+        //}
     }
 }
