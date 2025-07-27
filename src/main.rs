@@ -503,6 +503,11 @@ fn insertpanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u
 	//let px = panelcoordinates[index - 1][0] + panelcoordinates[index - 1][1];
 	//
 	
+    println!("Panel indices before insert:");
+    println!("panelindex[3] (windowstart): {}", panelindex[3]);
+    println!("panelindex[4] (last window): {}", panelindex[4]);
+    println!("panelindex[5] (notification): {}", panelindex[5]);
+	
 	updatepanelindex(4, panelindex); //Increment indexes from the end of the window area.
 	let mut index = panelindex[4] as usize;
 	
@@ -539,6 +544,7 @@ fn insertpanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u
 		//Window buttons go into the notification area. Let's calculate a new width for them.
 		let windowstart = panelindex[3] as usize;
 		//The window area ends where the notification area begins.
+		//It must be panelindex[5] because that is where the notification area starts, thus where the window buttons end. panelindex[4] would give the location of the start of the final window button.
 		let windowend = panelindex[5] as usize;
 		let startx = panelcoordinates[windowstart][0];
 		let endx = tray;
@@ -590,7 +596,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	
 	let mut wm = WindowManager::new();
 	
-	//This code is freakin' aweful. Really needs a refactor, but need a MVP before the refactor.
+	//This code is freakin' awful. Really needs a refactor, but need a MVP before the refactor.
 
     let (xconnection, screenid) = x11rb::connect(Some(":0"))?;
     let screen = &xconnection.setup().roots[screenid];
@@ -1009,6 +1015,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 											//Remove window from the panel.
 											//FIX, TODO, FIXME, this part isn't removing the correct index?
 											removepanelwindow(&mut panelindex, client, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
+											draw = 40;
 											break;
 										}
 									}
@@ -1584,50 +1591,70 @@ fn swapwindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Win
 }
 
 fn removepanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {
-    //Find the index of the window to remove in the window panel area
-    let windowstart = panelindex[3] as usize;
-    let windowend = panelindex[5] as usize;
-    let mut remove_index: Option<usize> = None;
-    for i in windowstart..windowend {
-        if panelwindows[i][0] == window {
-            remove_index = Some(i);
-            break;
+    let windowstart = panelindex[3];
+    let windowend = panelindex[5];
+    let mut remove: Option<usize> = None;
+    
+    //Find the window to remove.
+    for index in windowstart as usize..windowend as usize {
+        if panelwindows[index][0] == window {
+			//Move windows left.
+			for i in index..=windowend as usize - 1 {
+				panelitems[i] = panelitems[i + 1];
+				panelcoordinates[i] = panelcoordinates[i + 1];
+				panelwindows[i] = panelwindows[i + 1];
+			}
+
+			if panelindex[3] != panelindex[4] {
+				panelindex[4] = panelindex[4] - 1;
+				panelindex[5] = panelindex[5] - 1;
+			} else {
+				//Reset to factory settings!
+				panelindex[3] = panelindex[2];
+				panelindex[4] = panelindex[2];
+				panelindex[5] = panelindex[2] + 1;
+			}
+
+			//Clear last slot that is now out of range.
+			panelitems[windowend as usize] = [0];
+			panelcoordinates[windowend as usize] = [0, 0];
+			panelwindows[windowend as usize] = [0];
+
+			break;
         }
     }
-    if let Some(index) = remove_index {
-        //Shift panel icons/windows left to remove the window
-        for i in index..windowend - 1 {
-            panelitems[i] = panelitems[i + 1];
-            panelcoordinates[i] = panelcoordinates[i + 1];
-            panelwindows[i] = panelwindows[i + 1];
-        }
-        //Clear the last one in the window area
-        panelitems[windowend - 1] = [0];
-        panelcoordinates[windowend - 1] = [0, 0];
-        panelwindows[windowend - 1] = [0];
+	
+	
+    println!("\n=== Panel Indices ===");
+    println!("┌───────┬─────────────┬───────────┬──────────────┬─────────────┬──────────────┐");
+    println!("│ Start │ Links Start │ Links End │ Window Start │ Window End  │ Notify Start │");
+    println!("├───────┼─────────────┼───────────┼──────────────┼─────────────┼──────────────┤");
+    println!("│   {}   │     {}       │     {}     │      {}       │      {}      │      {}       │", 
+        panelindex[0], panelindex[1], panelindex[2], panelindex[3], panelindex[4], panelindex[5]);
+    println!("└───────┴─────────────┴───────────┴──────────────┴─────────────┴──────────────┘");
 
-        //Decrement panelindex[4] (window area end) and panelindex[5] (notification area start)
-        if panelindex[4] > 0 {
-            panelindex[4] -= 1;
-        }
-        if panelindex[5] > 0 {
-            panelindex[5] -= 1;
-        }
+    println!("\n=== Panel Items & Windows ===");
+    println!("┌───────┬────────────┬────────────────┬──────────────┐");
+    println!("│ Index │ Item Type  │ Window Handle  │ Coordinates  │");
+    println!("├───────┼────────────┼────────────────┼──────────────┤");
 
-        //Size has changed, recalc window button coords.
-        //let tray = panelcoordinates[panelindex[5] as usize][0];
-        //let windowstart = panelindex[3] as usize;
-        //let windowend = panelindex[5] as usize;
-        //let startx = panelcoordinates[windowstart][0];
-        //let endx = tray;
-        //let count = (windowend - windowstart) as i16;
-        //if count > 0 {
-        //    let width = ((endx - startx) / count) - 3;
-        //    let mut x = startx;
-        //    for i in windowstart..windowend {
-        //        panelcoordinates[i] = [x, width];
-        //        x += width + 3;
-        //    }
-        //}
+    for i in 0..=panelindex[5] as usize {
+        println!("│  {:3}  │    {:3}     │   {:8}     │ [{:4}, {:4}] │",
+            i,
+            panelitems[i][0],
+            panelwindows[i][0],
+            panelcoordinates[i][0],
+            panelcoordinates[i][1]
+        );
     }
+    println!("└───────┴────────────┴────────────────┴──────────────┘");
+
+    println!("\nItem Types Legend:");
+    println!(" 0  = Start Button");
+    println!("30  = Icon Link");
+    println!("40  = Window Button (Normal)");
+    println!("43  = Window Button (Focused)");
+    println!("60  = Notification Area");
+	
+	
 }
