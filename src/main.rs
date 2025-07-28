@@ -526,44 +526,85 @@ fn insertpanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u
     panelitems[index][0] = 43;
     panelwindows[index] = [window];
 
-    let tray = panelcoordinates[panelindex[5] as usize][0];
+    
     //panelcoordinates[index] = [panelcoordinates[index][0] + 3, panelcoordinates[index][1]];
 	
-	let previousindex = index - 1;
-	
-	let previouswidth = if (panelitems[previousindex] >= [40] && panelitems[previousindex] < [45]) {
-		panelcoordinates[index - 1][1]
-	} else {
-		160
-	};
-	let currentx = panelcoordinates[index][0];
 
-	if currentx + previouswidth < tray {
-		panelcoordinates[index] = [currentx + 3, previouswidth];
-	} else {
-		//Window buttons go into the notification area. Let's calculate a new width for them.
-		let windowstart = panelindex[3] as usize;
-		//The window area ends where the notification area begins.
-		//It must be panelindex[5] because that is where the notification area starts, thus where the window buttons end. panelindex[4] would give the location of the start of the final window button.
-		let windowend = panelindex[5] as usize;
-		let startx = panelcoordinates[windowstart][0];
-		let endx = tray;
-		let count = (windowend - windowstart) as i16;
-		if count > 0 {
-			let width = ((endx - startx) / count) - 3;
-			let mut x = startx;
-			for i in windowstart..windowend {
-				panelcoordinates[i] = [x, width];
-				x += width + 3;
-			}
-		}
-	}
+	windowbuttonlength(index, panelindex, panelitems, panelcoordinates);
 
 }
 
+pub fn windowbuttonlength(index: usize, panelindex: &mut [u8; 6], panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128]) {
+	let windowindexstart = panelindex[3] as usize;
+	
+	if (panelitems[windowindexstart] < [40] || panelitems[windowindexstart] > [45]) {
+		println!("GET OUT OF HERE!");
+		return;
+	}
+	
+	
+	const WINDOWBUTTONLENGTH: i16 = 160;
+	
+	
+	let windowindexend = panelindex[4] as usize;
+	let trayindexstart = panelindex[5] as usize;
+	let startx = panelcoordinates[windowindexstart][0];
+	let tray = panelcoordinates[trayindexstart][0];
+	
+	println!("{} - {} > ({} - {} + 1) * 160", tray, startx, windowindexend, windowindexstart);
+	
+	//Lets check to see if all window buttons will fit in the task bar with the default window button length.
+	if tray - startx > (windowindexend - windowindexstart + 1) as i16 * WINDOWBUTTONLENGTH {
+		
+		//We can make all the window buttons the default size.
+		for i in windowindexstart..=windowindexend {
+			if (panelitems[i] >= [40] && panelitems[i] < [45]) {
+				//This is very heavy! Much more heavy than the below code. It'll do for now.
+				panelcoordinates[i][1] = WINDOWBUTTONLENGTH;
+				panelcoordinates[i] = [panelcoordinates[i - 1][0] + panelcoordinates[i - 1][1] + 3, WINDOWBUTTONLENGTH];
+			} else {
+				println!("ERROR! ERROR! OUT OF BOUNDS! FIX ME! {}", 1);
+			}
+		}
+	} else {
+	
+		//Get the startx,
+		
+		
+		let previousindex = index - 1;
+		let previouswidth = if (panelitems[previousindex] >= [40] && panelitems[previousindex] < [45]) {
+			panelcoordinates[previousindex][1]
+		} else {
+			WINDOWBUTTONLENGTH //Default Window Button Length
+		};
 
+		let currentx = panelcoordinates[index][0];
+		if currentx + previouswidth < tray {
+			
+			
+			panelcoordinates[index] = [currentx + 3, previouswidth];
+			
 
+		} else {
+			// Window buttons go into the notification area. Let's calculate a new width for them.
 
+			// The window area ends where the notification area begins.
+			// It must be panelindex[5] because that is where the notification area starts, thus where the window buttons end.
+			// panelindex[4] would give the location of the start of the final window button.
+			
+			let count = (trayindexstart as isize - windowindexstart as isize) as i16;
+
+			if count > 0 {
+				let width = ((tray - startx) / count) - 3;
+				let mut x = startx;
+				for i in windowindexstart..windowindexend {
+					panelcoordinates[i] = [x, width];
+					x += width + 3;
+				}
+			}
+		}
+	}
+}
 
 fn addpanelicon(tray: u8, label: String, tooltip: String, icon: String, link: &mut [[String; 4]; 32], panelindex: &mut [u8; 6], panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128]) {
 	//Will do nothing if out of space. Probably want to return an error or something.
@@ -1288,11 +1329,33 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					}
 				}
 			} else if draw == 40 {
+				
+				//panelcoordinates[i] = [panelcoordinates[i - 1][0] + panelcoordinates[i - 1][1] + 3, WINDOWBUTTONLENGTH];
+				
+				let linkindexend = panelindex[2] as usize;
+				let windowindexstart = panelindex[3] as usize;
+				let trayindexstart = panelindex[5];
+				let trayindexstartx = panelcoordinates[trayindexstart as usize][0];
+				
+				if linkindexend == windowindexstart {
+					//No window buttons!
+					let linkindexendx = panelcoordinates[linkindexend][0] as usize;
+					let linkindexendlength = panelcoordinates[linkindexend][1] as usize;
+					let startx = (linkindexendx + linkindexendlength) as i16;
+					
+					xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: startx as i16, y: 3, width: (trayindexstartx - startx) as u16, height: panelheight }])?; //Draw panel background.
+				} else {
+				
+				let windowindexend = panelindex[4] as usize;
+				
+				
+				
 				//Redraw the tray windows only!
-				let tempstart = panelcoordinates[panelindex[3] as usize][0];
-				let tempwidth = panelcoordinates[panelindex[5] as usize][0] - tempstart;
+				let tempstart = panelcoordinates[windowindexstart][0];
+				
+				let tempwidth = trayindexstartx - tempstart;
 				xconnection.poly_fill_rectangle(panel, gc_highbackground, &[Rectangle { x: tempstart, y: 3, width: tempwidth as u16, height: panelheight }])?; //Draw panel background.
-				for i in (panelindex[3] as usize..=(panelindex[4] as usize)) {
+				for i in (windowindexstart..=windowindexend) {
 					println!("i {} panelitems[i][0] {}", i, panelitems[i][0]);
 					if panelitems[i][0] >= 40 && panelitems[i][0] < 45 {
 						//startx: i16, starty: i16, framewidth: i16, frameheight: i1
@@ -1305,6 +1368,10 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							panelitems[i][0] = 40;
 						}
 					}
+				}
+				
+				
+				
 				}
 			} else {
 
@@ -1619,6 +1686,8 @@ fn removepanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u
 			panelitems[windowend as usize] = [0];
 			panelcoordinates[windowend as usize] = [0, 0];
 			panelwindows[windowend as usize] = [0];
+
+			windowbuttonlength(index - 1, panelindex, panelitems, panelcoordinates);
 
 			break;
         }
