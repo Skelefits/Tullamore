@@ -134,16 +134,60 @@ pub fn windowborder<C: Connection>(xconnection: &C, window: u32, width: i16, hei
     Ok(())
 }
 
-pub fn drawstartbutton<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
 
-	drawbumpyframe(&xconnection, window, startx, starty, framewidth, frameheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-	drawpng(&xconnection, window, "computer.png", startx + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
+
+
+pub fn drawclickmenu<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, clickmenuitems: &mut [[String; 3]; 16], clickmenusize: &mut u8, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
+    let mut height: i16 = 0;
+
+	//Loop through clickmenuitems to determine the size of height.
+	//No Divider = 20, Dividier = 6
+    for i in 0..(*clickmenusize as usize) {
+        let label = &clickmenuitems[i][0];
+        if label == "Divider" {
+            height += 6;
+        } else {
+            height += 20;
+        }
+    }
 	
-	xconnection.image_text8(window, gc_lowlight, startx+22, 19, "S".as_bytes());
-	xconnection.image_text8(window, gc_lowlight, startx+22+5, 19, "t".as_bytes());
-	xconnection.image_text8(window, gc_lowlight, startx+22+5+5, 19, "ar".as_bytes());
-	xconnection.image_text8(window, gc_lowlight, startx+22+5+5+11, 19, "t".as_bytes());
+
+	
+	drawbumpyframe(&xconnection, window, startx, starty, 300, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+
+
     Ok(())
+}
+
+pub fn drawclickbutton<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
+	drawbumpyframe(&xconnection, window, startx, starty, framewidth, frameheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+
+	drawclicky(&xconnection, window, startx, 0, gc_lowlight);
+
+	//xconnection.image_text8(window, gc_lowlight, startx+22, 19, "S".as_bytes());
+	//xconnection.image_text8(window, gc_lowlight, startx+22+5, 19, "t".as_bytes());
+	//xconnection.image_text8(window, gc_lowlight, startx+22+5+5, 19, "ar".as_bytes());
+	//xconnection.image_text8(window, gc_lowlight, startx+22+5+5+11, 19, "t".as_bytes());
+    Ok(())
+}
+
+pub fn drawdepressedclickbutton<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
+	drawdepressedbumpyframe(&xconnection, window, startx, starty, framewidth, frameheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highbackground)?;
+
+	drawclicky(&xconnection, window, startx + 1, 1, gc_lowlight);
+
+	//xconnection.image_text8(window, gc_lowlight, startx+22, 19, "S".as_bytes());
+	//xconnection.image_text8(window, gc_lowlight, startx+22+5, 19, "t".as_bytes());
+	//xconnection.image_text8(window, gc_lowlight, startx+22+5+5, 19, "ar".as_bytes());
+	//xconnection.image_text8(window, gc_lowlight, startx+22+5+5+11, 19, "t".as_bytes());
+    Ok(())
+}
+
+pub fn drawclicky<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, gc_lowlight: u32) {
+	drawpng(&xconnection, window, "computer.png", startx + 4, starty + 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR]);
+	xconnection.image_text8(window, gc_lowlight, startx+22, starty + 19, "C".as_bytes());
+	xconnection.image_text8(window, gc_lowlight, startx+22+5, starty + 19, "l".as_bytes());
+	xconnection.image_text8(window, gc_lowlight, startx+22+5+5, starty + 19, "ick".as_bytes());
 }
 
 pub fn drawdepressedbumpyframe<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_highcheckers: u32) -> Result<(), Box<dyn Error>> {
@@ -193,6 +237,13 @@ pub fn drawbumpyframe<C: Connection>(xconnection: &C, window: u32, startx: i16, 
     }
 	Ok(())
 }
+
+pub fn drawsystemframe<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) {
+	drawdepressedframe(&xconnection, window, startx, starty, framewidth, frameheight, gc_lowlight, gc_highbackground);
+	drawdepressedframe(&xconnection, window, startx - 1, starty + 1, framewidth - 2, frameheight - 2, gc_lowbackground, gc_highlight);
+	xconnection.poly_fill_rectangle(window, gc_highbackground, &[Rectangle { x: 2, y: 2, width: framewidth as u16 - 3, height: frameheight as u16 - 3}]); //Draw panel background.
+}
+
 
 pub fn drawdepressedframe<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
 	//Draw a depressed frame around the target. For example, the notification area.
