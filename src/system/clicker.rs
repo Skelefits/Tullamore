@@ -28,6 +28,7 @@ use crate::trundle::drawbookerframe;
 use crate::trundle::drawradiobutton;
 use crate::trundle::drawcheckbox;
 use crate::trundle::drawsystemframe;
+use crate::trundle::drawclickbutton;
 use crate::drawdepressedbumpyframe;
 use crate::drawdepressedframe;
 use crate::insertpanelwindow;
@@ -51,41 +52,40 @@ use crate::trundle::{
 };
 
 
+const DIVIDER: i16 = 8;
+const ITEM: i16 = 20;
+const SEARCH: i16 = 30;
+const OFFSET: i16 = 3;
+
+pub fn startprogram(xconnection: &impl Connection, screen: &Screen, panel: Window, clickmenuitems: &[[String; 3]; 16], clickmenusize: &u8, screenwidth: &i16, screenheight: &i16, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, wm: &mut WindowManager) -> Window { 
+
+    let mut clickerheight: i16 = OFFSET + OFFSET;
 
 
-
-pub fn startprogram(xconnection: &impl Connection, screen: &Screen, panel: Window, clickmenuitems: &mut [[String; 3]; 16], clickmenusize: &mut u8, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, wm: &mut WindowManager) -> Window { 
-
-    let mut clickerheight: i16 = 0;
 
 	//Loop through clickmenuitems to determine the size of height.
 	//No Divider = 20, Dividier = 6
     for i in 0..(*clickmenusize as usize) {
         let label = &clickmenuitems[i][0];
         if label == "Divider" {
-            clickerheight += 6;
+            clickerheight += DIVIDER;
+		} else if label == "Search" {
+			clickerheight += SEARCH;
         } else {
-            clickerheight += 20;
+            clickerheight += ITEM;
         }
     }
 
-	const WIDTH: i16 = 180;
+	const WIDTH: i16 = 160;
 	const STARTX: i16 = WIDTH;
 	const STARTY: i16 = 0;
-	
 
-	match createframelesswindow(xconnection, screen, 50, 50, WIDTH as u16 + 1, clickerheight as u16 + 1, b"Clicker", 500, 500, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, wm) {
+	match createframelesswindow(xconnection, screen, 0, screenheight - clickerheight - 29, WIDTH as u16 + 1, clickerheight as u16 + 1, b"Clicker", 500, 500, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, wm) {
 		Ok(clicker) => {
 			//Draw menu...
 			
-			//drawdepressedbumpyframe(&xconnection, clicker, 0, 0, 180, clickerheight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highlight, gc_highbackground);
-			
-			drawsystemframe(&xconnection, clicker, STARTX, STARTY, WIDTH, clickerheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground);
-			//drawdepressedframe(&xconnection, clicker, STARTX, STARTY, WIDTH, clickerheight, gc_lowlight, gc_highbackground);
-			//drawdepressedframe(&xconnection, clicker, STARTX - 1, STARTY + 1, WIDTH - 2, clickerheight - 2, gc_lowbackground, gc_highlight);
-			//xconnection.poly_fill_rectangle(clicker, gc_highbackground, &[Rectangle { x: 2, y: 2, width: WIDTH as u16 - 3, height: clickerheight as u16 - 3}]); //Draw panel background.
-			
-			//drawdepressedframe(&xconnection, clicker, STARTX - 1, STARTY + 1, WIDTH - 2, clickerheight-6, gc_highlight, gc_lowbackground);
+
+			drawclickmenu(&xconnection, clicker, clickmenuitems, clickmenusize, STARTX, STARTY, WIDTH, clickerheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext);
 			
 			
 			match focuswindow(wm, xconnection, panel, clicker, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext) {
@@ -97,12 +97,60 @@ pub fn startprogram(xconnection: &impl Connection, screen: &Screen, panel: Windo
 	}
 }
 
-pub fn drawclickmenu<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, clickmenuitems: &mut [[String; 3]; 16], clickmenusize: &mut u8, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
+fn drawclickmenu<C: Connection>(xconnection: &C, clicker: u32, clickmenuitems: &[[String; 3]; 16], clickmenusize: &u8, startx: i16, starty: i16, clickerwidth: i16, clickerheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_titlebar: u32, gc_titlebartext: u32) {
+	
+	//Draw border and background.
+	drawsystemframe(&xconnection, clicker, startx, starty, clickerwidth, clickerheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground);
+	//Draw OS Text Background
+	xconnection.poly_fill_rectangle(clicker, gc_titlebar, &[Rectangle { x: OFFSET, y: OFFSET, width: 21, height: (clickerheight - OFFSET - OFFSET + 1) as u16}]);
+	//Draw OS Text Here
+	//???
+	//Loop through all menu items and draw them to the screen.
+	
 
-	//drawbumpyframe(&xconnection, window, startx, starty, 300, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+	
+//const DIVIDER: i16 = 8;
+//const ITEM: i16 = 20;
+//const SEARCH: i16 = 30;
+	
+	let mut loopy = clickerheight;
+	
+	if &clickmenuitems[0][0] == "Search" {
+		loopy = loopy - SEARCH + 7
+	} else {
+		loopy = loopy - ITEM + 7
+	}
+	
+	const STARTLOGO: i16 = 27;
+	const HALFDIVIDER: i16 = DIVIDER / 2;
+	
+    for i in 0..(*clickmenusize as usize) {
+		let label = &clickmenuitems[i][0];
+        if label == "Divider" {
+			//TODO: Make divider, make it a standard non-poly line.
+			xconnection.poly_line(CoordMode::PREVIOUS, clicker, gc_lowbackground, &[
+				Point { x: STARTLOGO, y: loopy + HALFDIVIDER + 1 },
+				Point { x: clickerwidth - STARTLOGO - 5, y: 0 },
+			]);
+			xconnection.poly_line(CoordMode::PREVIOUS, clicker, gc_highlight, &[
+				Point { x: STARTLOGO, y: loopy + HALFDIVIDER + 2 },
+				Point { x: clickerwidth - STARTLOGO - 5, y: 0 },
+			]);
+			
+            loopy = loopy - DIVIDER;
+		} else if label == "Search" {
+			loopy = loopy - SEARCH;
+        } else {
+			drawpng(&xconnection, clicker, "computer.png", STARTLOGO, loopy - 8, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR]);
+            xconnection.image_text8(clicker, gc_lowlight, 48, loopy + 4, label.as_bytes());
+			loopy = loopy - ITEM;
+        }
+    }
+}
 
-
+pub fn endprogram<C: Connection>(wm: &mut WindowManager, xconnection: &C, window: u32, system: Window, panelcoordinates: [[i16; 2]; 128], gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
+	drawclickbutton(&xconnection, window, panelcoordinates[0][0], 4, panelcoordinates[0][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+	wm.removewindow(&xconnection, 0, system);
+	//system = 0;
     Ok(())
-
-
 }
