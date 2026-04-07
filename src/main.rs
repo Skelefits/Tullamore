@@ -215,11 +215,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     Ok(())
 }
 
-fn drawchunkyxoroutline<C: Connection>(xconnection: &C, window: u32, gc: u32, x: i16, y: i16, width: u16, height: u16,) -> Result<(), Box<dyn Error>> {
+fn drawchunkyxoroutline<C: Connection>(xconnection: &C, window: u32, gc: u32, x: i16, y: i16, width: u16, height: u16) -> Result<(), Box<dyn Error>> {
     const THICKNESS: u16 = 4;
+	
     let screen = xconnection.setup().roots.first().unwrap();
-    let screen_height = screen.height_in_pixels as i16;
-    let panely = screen_height - 28;
+	//TODO: This isn't needed, we already know the screen height. Just pass it in.
+    let height = screen.height_in_pixels as i16;
+    let panely = height - 28;
 
     let mut rectangles = Vec::new();
     if y < panely {
@@ -966,7 +968,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				xconnection.flush()?;
 			}
 			Event::DestroyNotify(destroy) => {
-				}
+			}
 			
 				
 			
@@ -981,8 +983,6 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							if let Some(state) = updateelement(index, elementtype, 2, &mut panelitems, &panelindex) {
 								draw = state;
 								elementreset = index as u8;
-								//println!("elementreset {}", elementreset);
-								//println!("draw {}", draw);
 							}
 						} else if elementtype == 40 {
 						} else {
@@ -1032,9 +1032,9 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					if let Some((index, elementtype)) = checkelement(release.event_x, release.event_y, &panelindex, &panelcoordinates) {
 						if elementtype == 0 {
 							if system == 0 {
-								system = system::clicker::startprogram(&xconnection, &screen, panel, &mut clickmenuitems, &mut clickmenusize, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm);
+								system = system::clicker::startprogram(&xconnection, &screen, panel, &clickmenuitems, &clickmenusize, &width, &height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm);
 							}
-							println!("FUCK");
+							println!("Click Button Clicked");
 							//draw = 1;
 						} else if elementtype == 30 {
 							//Link released! Open link item.
@@ -1089,6 +1089,9 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							if x >= edge - 54 && x < edge - 38 { //Min button!
 								if let Some(client) = wm.frames.get(&release.event) {
 									if let Some(index) = panelwindows.iter().position(|w| w[0] == *client) {
+									
+									
+									
 										if let Some(target) = wm.windows.get_mut(client) {
 											target.map = 0;
 											println!("Window.Map {} {}", target.map, index);
@@ -1103,6 +1106,11 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 											swapwindow(&mut wm, &xconnection, panel, &panelwindows, &mut panelitems, &mut windowactive, &mut windowlast, index, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,)?;
 											
 										}
+										
+										
+										
+										
+										
 									}
 								}
 							} if x >= edge - 22 && x < edge - 6 { //Close button!
@@ -1169,7 +1177,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 			}
 			
 			//We need a lot more comments here!
-               Event::ButtonPress(press) => {
+            Event::ButtonPress(press) => {
 				
 				
 				if press.detail == 1 { //Left mouse button pressed.
@@ -1263,6 +1271,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						if elementtype == 0 {
 							//Pressing Click button!
 							draw = 1;
+							//elementreset = 0 will reset the button, but we aren't going to use it here. We will use it on the Clicker function.
 							elementreset = 0;
 						} else if elementtype == 30 {
 							if let Some(state) = updateelement(index, elementtype, 1, &mut panelitems, &panelindex) {
@@ -1280,6 +1289,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							}
 						} else {
 							resetpanelelement(&mut draw, &mut elementreset, &mut panelitems, &panelindex);
+							
 						}
 					}
 					
@@ -1322,7 +1332,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					}
 				}
 			}
-               Event::Error(_) => println!("bug bug"), _ => (),
+            Event::Error(_) => println!("bug bug"), _ => (),
         }
 		
 		
@@ -1338,10 +1348,10 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				// 3 = Start Button Engaged
 				// 4 = Start Button Reset
 				if draw == 0 {
-					
-					wm.removewindow(&xconnection, 0, system);
+					system::clicker::endprogram(&mut wm, &xconnection, panel, system, panelcoordinates, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
 					system = 0;
-					drawclickbutton(&xconnection, panel, panelcoordinates[0][0], 4, panelcoordinates[0][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+					
+
 				}
 				if draw == 1 {
 					//workinghere

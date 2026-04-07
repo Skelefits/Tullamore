@@ -739,9 +739,9 @@ fn drawpnginternal<C: Connection>(xconnection: &C, window: u32, filename: &str, 
 }
 
 pub fn drawpng<C: Connection>(xconnection: &C, window: u32, filename: &str, x: i16, y: i16, width: u16, height: u16, colour: Option<u32>) -> Result<(), Box<dyn Error>> {
-    // I only want to support one image type. I didn't want to use png, but all icon packs use png so it'll probably stay.
-    // Vector would be fun, but probably too resource intensive.
-    // Fast path: no scaling for embedded performance
+    //I only want to support one image type. I didn't want to use png, but all icon packs use png so it'll probably stay.
+    //Vector would be fun, but probably too resource intensive.
+    //No scaling for embedded performance.
     drawpnginternal(xconnection, window, filename, x, y, width, height, colour, 0)
 }
 
