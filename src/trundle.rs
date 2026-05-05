@@ -84,17 +84,55 @@ pub fn loadcolours<const N: usize>(file_path: &str, default: [u32; N]) -> Vec<Op
 }
 
 pub fn drawtitlebar<C: Connection>(xconnection: &C, window: u32, width: i16, height: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_titlebar: u32) -> Result<(), Box<dyn Error>> {
-
-	
 	xconnection.poly_fill_rectangle(window, gc_titlebar, &[Rectangle {x: 4, y: 4, width: width as u16, height: height as u16,}])?;
 	
-	drawbumpyframe(&xconnection, window, width - 14, 6, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-	drawbumpyframe(&xconnection, window, width - 30, 6, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-	drawbumpyframe(&xconnection, window, width - 46, 6, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+
+	let mut px: i16 = width - 14;
+	let mut py: i16 = 6;
+	let mut pyl: i16 = py + 3;
+
+	//Close button.
+	drawbumpyframe(&xconnection, window, px, py, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+	px = px + 4;
+	drawxicon(&xconnection, window, px, pyl, 6, gc_lowlight);
+	//Max/normal screen button.
+	px = px - 20;
+	drawbumpyframe(&xconnection, window, px, py, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+	px = px + 4;
+	drawbordericon(&xconnection, window, px, pyl, 6, gc_lowlight);
+	//Minimise button.
+	px = px - 20;
+	drawbumpyframe(&xconnection, window, px, py, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
 	//println!("{}", width - 14);
 	
     Ok(())
 }
+
+pub fn drawxicon<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, size: i16, gc_lowlight: u32) -> Result<(), Box<dyn Error>> {
+	let lines = [
+		Segment { x1: startx, y1: starty, x2: startx + size + 1, y2: starty + size },
+		Segment { x1: startx, y1: starty + size, x2: startx + size + 1, y2: starty },
+		Segment { x1: startx+1, y1: starty, x2: startx + size, y2: starty + size },
+		Segment { x1: startx+1, y1: starty + size, x2: startx + size, y2: starty },
+	];
+	xconnection.poly_segment(window, gc_lowlight, &lines)?;
+    Ok(())
+}
+
+pub fn drawbordericon<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, size: i16, gc_lowlight: u32) -> Result<(), Box<dyn Error>> {
+	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_lowlight, &[
+		Point { x: startx, y: starty },
+		Point { x: 8, y: 0 },
+		Point { x: 0, y: 7 },
+		Point { x: -8, y: 0 },
+		Point { x: 0, y: -6 },
+		Point { x: 7, y: 0 },
+	])?;
+    Ok(())
+}
+
+
+
 
 pub fn grabwindowtitle<C: x11rb::connection::Connection>(xconnection: &C, window: u32,) -> Result<Option<String>, Box<dyn std::error::Error>> {
     let reply = xconnection.get_property(false, window, AtomEnum::WM_NAME, AtomEnum::STRING, 0, 1024)?.reply()?;
