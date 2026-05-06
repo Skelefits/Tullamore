@@ -57,7 +57,7 @@ const ITEM: i16 = 20;
 const SEARCH: i16 = 30;
 const OFFSET: i16 = 3;
 
-pub fn startprogram(xconnection: &impl Connection, screen: &Screen, panel: Window, clickmenuitems: &[[String; 3]; 16], clickmenusize: &u8, screenwidth: &i16, screenheight: &i16, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, wm: &mut WindowManager) -> Window { 
+pub fn startprogram(xconnection: &impl Connection, screen: &Screen, panel: Window, clickmenuitems: &[[String; 3]; 16], clickmenusize: &u8, screenwidth: &i16, screenheight: &i16, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, poly_lowlight: &mut Vec<Segment>, wm: &mut WindowManager) -> Window { 
 
     let mut clickerheight: i16 = OFFSET + OFFSET;
 
@@ -88,7 +88,7 @@ pub fn startprogram(xconnection: &impl Connection, screen: &Screen, panel: Windo
 			drawclickmenu(&xconnection, clicker, clickmenuitems, clickmenusize, STARTX, STARTY, WIDTH, clickerheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext);
 			
 			
-			match focuswindow(wm, xconnection, panel, clicker, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext) {
+			match focuswindow(wm, xconnection, panel, clicker, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight) {
 				Ok(_) => clicker,
 				Err(_) => 0,
 			}
@@ -149,8 +149,11 @@ fn drawclickmenu<C: Connection>(xconnection: &C, clicker: u32, clickmenuitems: &
 }
 
 pub fn endprogram<C: Connection>(wm: &mut WindowManager, xconnection: &C, window: u32, system: Window, panelcoordinates: [[i16; 2]; 128], gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
-	drawclickbutton(&xconnection, window, panelcoordinates[0][0], 4, panelcoordinates[0][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+	//Remove the click menu.
 	wm.removewindow(&xconnection, 0, system);
+	//Return bottom left Click button to unclicked state.
+	drawclickbutton(&xconnection, window, panelcoordinates[0][0], 4, panelcoordinates[0][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
 	//system = 0;
+	
     Ok(())
 }

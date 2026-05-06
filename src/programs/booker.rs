@@ -33,12 +33,12 @@ use crate::createwindow;
 use crate::WindowManager;
 
 
-pub fn startprogram(xconnection: &impl Connection, screen: &Screen, panel: Window, width: i16, height: i16, panelindex: &mut [u8; 6], panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32], gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, wm: &mut WindowManager) -> u8 { 
+pub fn startprogram(xconnection: &impl Connection, screen: &Screen, panel: Window, width: i16, height: i16, panelindex: &mut [u8; 6], panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32], gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, poly_lowlight: &mut Vec<Segment>, wm: &mut WindowManager) -> u8 { 
 	match createwindow(xconnection, screen, 50, 50, 560, 340, b"Booker", width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, wm) {
 		Ok(booker) => {
 			insertpanelwindow(panelindex, booker, panelitems, panelcoordinates, panelwindows, panelicons);
 			basicscreen(xconnection, booker, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground);
-			match focuswindow(wm, xconnection, panel, booker, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext) {
+			match focuswindow(wm, xconnection, panel, booker, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight) {
 				Ok(_) => 40,
 				Err(_) => 0,
 			}
