@@ -219,9 +219,10 @@ fn drawchunkyxoroutline<C: Connection>(xconnection: &C, window: u32, gc: u32, x:
     const THICKNESS: u16 = 4;
 	
     let screen = xconnection.setup().roots.first().unwrap();
+	
+    //let screenheight = screen.height_in_pixels as i16;
 	//TODO: This isn't needed, we already know the screen height. Just pass it in.
-    let height = screen.height_in_pixels as i16;
-    let panely = height - 28;
+    let panely = (screen.height_in_pixels as i16) - 28;
 
     let mut rectangles = Vec::new();
     if y < panely {
@@ -237,13 +238,16 @@ fn drawchunkyxoroutline<C: Connection>(xconnection: &C, window: u32, gc: u32, x:
             rectangles.push(Rectangle { x, y: panely - visible_bottom_height as i16, width, height: visible_bottom_height });
         }
     } else {
-        rectangles.push(Rectangle { x, y: bottom_y - THICKNESS as i16, width, height: THICKNESS });
+		rectangles.push(Rectangle { x, y: bottom_y - THICKNESS as i16, width, height: THICKNESS });
     }
 
     let visible_left_height = ((height as i16 - 2 * THICKNESS as i16).min(panely - y - THICKNESS as i16)).max(0);
+	//eprintln!("visible_left_height: {}", visible_left_height);
+	//eprintln!("height: {}", height);
+	//eprintln!("y: {}", y);
     if visible_left_height > 0 {
-        rectangles.push(Rectangle { x, y: y + THICKNESS as i16, width: THICKNESS, height: visible_left_height as u16 });
-        rectangles.push(Rectangle { x: x + width as i16 - THICKNESS as i16, y: y + THICKNESS as i16, width: THICKNESS, height: visible_left_height as u16 });
+        rectangles.push(Rectangle { x, y: y + THICKNESS as i16, width: THICKNESS, height: visible_left_height as u16 }); //Left Border
+        rectangles.push(Rectangle { x: x + width as i16 - THICKNESS as i16, y: y + THICKNESS as i16, width: THICKNESS, height: visible_left_height as u16 }); //Right Border
     }
     if !rectangles.is_empty() {
         xconnection.poly_fill_rectangle(window, gc, &rectangles)?;
@@ -782,6 +786,11 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 	let gc_lowcheckers = xconnection.generate_id()?;
 	let gc_xorcheckers = xconnection.generate_id()?;
 
+
+	//Graphic polygons
+	let mut poly_lowlight: Vec<Segment> = Vec::new();
+
+
     //Show window.
     xconnection.map_window(panel)?;
 	
@@ -809,7 +818,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 	wm.fillblanks();
 
-	redrawframes(&xconnection, &wm, panel, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+	redrawframes(&xconnection, &wm, panel, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight);
 
 	
 	
@@ -948,7 +957,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						
 						wm.installexternalwindow(target.window, target.window, title, geom.x, geom.y, geom.width as i16, geom.height as i16, 0);
 						insertpanelwindow(&mut panelindex, target.window, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-							if let Ok(frame) = createwmborder(&xconnection, &screen, &wm, target.window, geom.width, geom.height, width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext) {
+							if let Ok(frame) = createwmborder(&xconnection, &screen, &wm, target.window, geom.width, geom.height, width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight) {
 							if let Some(state) = wm.windows.get_mut(&target.window) {
 								state.frame = frame;
 							}
@@ -1032,7 +1041,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					if let Some((index, elementtype)) = checkelement(release.event_x, release.event_y, &panelindex, &panelcoordinates) {
 						if elementtype == 0 {
 							if system == 0 {
-								system = system::clicker::startprogram(&xconnection, &screen, panel, &clickmenuitems, &clickmenusize, &width, &height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm);
+								system = system::clicker::startprogram(&xconnection, &screen, panel, &clickmenuitems, &clickmenusize, &width, &height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight, &mut wm);
 							}
 							println!("Click Button Clicked");
 							//draw = 1;
@@ -1044,25 +1053,25 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 									if index == 1 {
 										let test = createwindow(&xconnection, &screen, 100, 100, 200, 100, b"test1", width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight)?;
 									} else if index == 2 {
 										let test = createwindow(&xconnection, &screen, 100, 100, 300, 200, b"test2", width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight)?;
 									} else if index == 3 {
 										let test = createwindow(&xconnection, &screen, 100, 100, 100, 100, b"test3", width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight)?;
 									} else if index == 4 {
-										draw = programs::booker::startprogram(&xconnection, &screen, panel, width, height, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm);
+										draw = programs::booker::startprogram(&xconnection, &screen, panel, width, height, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight, &mut wm);
 									} else if index == 5 {
-										game = games::superbun::startprogram(&xconnection, &screen, panel, width, height, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm);
+										game = games::superbun::startprogram(&xconnection, &screen, panel, width, height, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight, &mut wm);
 									}
 									draw = 40; 
 
 									
 									
-									redrawframes(&xconnection, &wm, panel, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+									redrawframes(&xconnection, &wm, panel, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight);
 								}
 								//Run the command for that link!
 							}
@@ -1072,7 +1081,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							windowactive = index as u8;
 							panelitems[index][0] = 43;
 							let client = panelwindows[index][0] as Window;
-							if let Some(state) = wm.getwindow(&client) { focuswindow(&mut wm, &xconnection, panel, client, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?; draw = elementtype; }
+							if let Some(state) = wm.getwindow(&client) { focuswindow(&mut wm, &xconnection, panel, client, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight)?; draw = elementtype; }
 						}
 					}
 				} else {
@@ -1103,7 +1112,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 											
 											println!("windowactive {} windowlast {}", windowactive, windowlast);
 											
-											swapwindow(&mut wm, &xconnection, panel, &panelwindows, &mut panelitems, &mut windowactive, &mut windowlast, index, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,)?;
+											swapwindow(&mut wm, &xconnection, panel, &panelwindows, &mut panelitems, &mut windowactive, &mut windowlast, index, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight)?;
 											
 										}
 										
@@ -1134,7 +1143,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 										if panelwindows[i][0] == client {
 											println!("found it {}", client);
 											//index = i;
-											swapwindow(&mut wm, &xconnection, panel, &panelwindows, &mut panelitems, &mut windowactive, &mut windowlast, i, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,)?;
+											swapwindow(&mut wm, &xconnection, panel, &panelwindows, &mut panelitems, &mut windowactive, &mut windowlast, i, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight)?;
 											//Remove window from the panel.
 											//FIX, TODO, FIXME, this part isn't removing the correct index?
 											removepanelwindow(&mut panelindex, client, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
@@ -1171,7 +1180,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					drag = None;
 					origin = None;
 						//Redraw window frames.
-					redrawframes(&xconnection, &wm, panel, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?;
+					redrawframes(&xconnection, &wm, panel, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight);
 					}
 					xconnection.flush()?;
 			}
@@ -1241,7 +1250,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							
 							
 							if frame != panel {
-								updateborder(&xconnection, frame, client, width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground,gc_titlebar, gc_titlebartext)?;
+								updateborder(&xconnection, frame, client, width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground,gc_titlebar, gc_titlebartext, &mut poly_lowlight);
 							}
 						}
 						//Draw the taskbar window buttons.
@@ -1340,7 +1349,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 		
 		
 		if draw < 255 {
-			
+			//What do we need to redraw?
 			if draw < 5 {
 				// 0 = Start Button Ready
 				// 1 = Start Button Pressed
@@ -1348,14 +1357,15 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				// 3 = Start Button Engaged
 				// 4 = Start Button Reset
 				if draw == 0 {
+					//Change bottom left Click button to ready.
+					//Endprogram function deleted the Clicker menu and redraws the Click button to unpressed.
 					system::clicker::endprogram(&mut wm, &xconnection, panel, system, panelcoordinates, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
 					system = 0;
-					
-
 				}
 				if draw == 1 {
 					//workinghere
 					//drawclickbutton(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+					//Click button is changed to pressed.
 					drawdepressedclickbutton(&xconnection, panel, panelcoordinates[0][0], 4, panelcoordinates[0][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
 
 
@@ -1572,6 +1582,11 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 			//println!("waking");
 		}
 			
+			
+		
+			
+			
+			
 		xconnection.flush()?;
 		
 		
@@ -1687,13 +1702,21 @@ fn updateelement(target: usize, elementtype: u8, new: u8, panelitems: &mut [[u8;
     None
 }
 
-fn focuswindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Window, client: Window, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext) -> Result<(), Box<dyn Error>> {
+fn focuswindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Window, client: Window, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, poly_lowlight: &mut Vec<Segment>) -> Result<(), Box<dyn Error>> {
     if let Some(state) = wm.getwindow(&client) {
         let frame = state.frame;
         if state.map == 0 { xconnection.map_window(client)?; xconnection.map_window(frame)?; }
         wm.focus(&xconnection, frame, panel)?;
-        let redraw: Vec<(Window, Window, i16, i16)> = wm.windows.values().filter(|state| state.map == 2 || state.map == 3).map(|state| {let fwidth = state.width + (2 * BORDER as i16); let fheight = state.height + (2 * BORDER as i16) + (TITLEBAR as i16); (state.frame, state.window, fwidth, fheight)}).collect();
-        for (frame, client, width, height) in redraw { if frame != panel { updateborder(&xconnection, frame, client, width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext)?; } }
+        let redraw: Vec<(Window, Window, i16, i16)> = wm.windows.values().filter(|state| state.map == 2 || state.map == 3).map(|state| {
+			let fwidth = state.width + (2 * BORDER as i16);
+			let fheight = state.height + (2 * BORDER as i16) + (TITLEBAR as i16);
+			(state.frame, state.window, fwidth, fheight)
+		}).collect();
+        for (frame, client, width, height) in redraw {
+			if frame != panel {
+				updateborder(&xconnection, frame, client, width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight);
+			}
+		}
     }
     Ok(())
 }
@@ -1736,7 +1759,7 @@ fn resetpanelelement(draw: &mut u8, elementreset: &mut u8, panelitems: &mut [[u8
     }
 }
 
-fn swapwindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Window, panelwindows: &[[u32; 1]; 128], panelitems: &mut [[u8; 1]; 128], windowactive: &mut u8, windowlast: &mut u8, index: usize, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext,) -> Result<(), Box<dyn Error>> {
+fn swapwindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Window, panelwindows: &[[u32; 1]; 128], panelitems: &mut [[u8; 1]; 128], windowactive: &mut u8, windowlast: &mut u8, index: usize, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, poly_lowlight: &mut Vec<Segment>) -> Result<(), Box<dyn Error>> {
     if *windowlast == 255 || *windowlast == *windowactive {
         let loopindex = index as u8;
         for i in 1..=5 {
@@ -1747,10 +1770,7 @@ fn swapwindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Win
                         if window.map == 3 {
                             window.map = 2;
                             panelitems[checkindex as usize][0] = 43;
-                            focuswindow(
-                                wm, xconnection, panel, panelwindows[checkindex as usize][0] as Window,
-                                gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,
-                            )?;
+                            focuswindow(wm, xconnection, panel, panelwindows[checkindex as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight)?;
                             break;
                         }
                     }
@@ -1763,10 +1783,7 @@ fn swapwindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Win
                     if window.map == 3 {
                         window.map = 2;
                         panelitems[checkindex as usize][0] = 43;
-                        focuswindow(
-                            wm, xconnection, panel, panelwindows[checkindex as usize][0] as Window,
-                            gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,
-                        )?;
+                        focuswindow(wm, xconnection, panel, panelwindows[checkindex as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight)?;
                         break;
                     }
                 }
@@ -1776,10 +1793,7 @@ fn swapwindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Win
         *windowactive = *windowlast;
         panelitems[*windowactive as usize][0] = 43;
         *windowlast = 255;
-        focuswindow(
-            wm, xconnection, panel, panelwindows[*windowactive as usize][0] as Window,
-            gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext,
-        )?;
+        focuswindow(wm, xconnection, panel, panelwindows[*windowactive as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight)?;
     }
     Ok(())
 }
