@@ -92,17 +92,17 @@ pub fn drawtitlebar<C: Connection>(xconnection: &C, window: u32, width: i16, hei
 
 
 	//Close button.
-	drawbumpyframe(&xconnection, window, px, py, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground);
+	drawbumpyframe(&xconnection, window, px, py, 15, 13, gc_highlight, gc_highbackground, gc_lowbackground, poly_lowlight);
 	px = px + 4;
 	poly_lowlight.extend(drawxicon(&xconnection, window, px, pyl, 6));
 	//Max/normal screen button.
 	px = px - 20;
-	drawbumpyframe(&xconnection, window, px, py, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground);
+	drawbumpyframe(&xconnection, window, px, py, 15, 13, gc_highlight, gc_highbackground, gc_lowbackground, poly_lowlight);
 	px = px + 3;
 	poly_lowlight.extend(drawfullscreenicon(&xconnection, window, px, pyl-1, 8));
 	//Minimise button.
 	px = px - 19;
-	drawbumpyframe(&xconnection, window, px, py, 15, 13, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground);
+	drawbumpyframe(&xconnection, window, px, py, 15, 13, gc_highlight, gc_highbackground, gc_lowbackground, poly_lowlight);
 	px = px + 4;
 	poly_lowlight.extend(drawminimiseicon(&xconnection, window, px, pyl-1, 7));
 	//println!("{}", width - 14);
@@ -188,7 +188,7 @@ pub fn windowborder<C: Connection>(xconnection: &C, window: u32, width: i16, hei
 
 
 
-pub fn drawclickmenu<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, clickmenuitems: &mut [[String; 3]; 16], clickmenusize: &mut u8, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
+pub fn drawclickmenu<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, clickmenuitems: &mut [[String; 3]; 16], clickmenusize: &mut u8, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, poly_lowlight: &mut Vec<Segment>) {
     let mut height: i16 = 0;
 
 	//Loop through clickmenuitems to determine the size of height.
@@ -204,14 +204,13 @@ pub fn drawclickmenu<C: Connection>(xconnection: &C, window: u32, startx: i16, s
 	
 
 	
-	drawbumpyframe(&xconnection, window, startx, starty, 300, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+	drawbumpyframe(&xconnection, window, startx, starty, 300, height, gc_highlight, gc_highbackground, gc_lowbackground, poly_lowlight);
 
 
-    Ok(())
 }
 
-pub fn drawclickbutton<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
-	drawbumpyframe(&xconnection, window, startx, starty, framewidth, frameheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+pub fn drawclickbutton<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, poly_lowlight: &mut Vec<Segment>) {
+	drawbumpyframe(&xconnection, window, startx, starty, framewidth, frameheight, gc_highlight, gc_highbackground, gc_lowbackground, poly_lowlight);
 
 	drawclicky(&xconnection, window, startx, 0, gc_lowlight);
 
@@ -219,19 +218,7 @@ pub fn drawclickbutton<C: Connection>(xconnection: &C, window: u32, startx: i16,
 	//xconnection.image_text8(window, gc_lowlight, startx+22+5, 19, "t".as_bytes());
 	//xconnection.image_text8(window, gc_lowlight, startx+22+5+5, 19, "ar".as_bytes());
 	//xconnection.image_text8(window, gc_lowlight, startx+22+5+5+11, 19, "t".as_bytes());
-    Ok(())
-}
 
-pub fn drawdepressedclickbutton<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
-	drawdepressedbumpyframe(&xconnection, window, startx, starty, framewidth, frameheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highbackground)?;
-
-	drawclicky(&xconnection, window, startx + 1, 1, gc_lowlight);
-
-	//xconnection.image_text8(window, gc_lowlight, startx+22, 19, "S".as_bytes());
-	//xconnection.image_text8(window, gc_lowlight, startx+22+5, 19, "t".as_bytes());
-	//xconnection.image_text8(window, gc_lowlight, startx+22+5+5, 19, "ar".as_bytes());
-	//xconnection.image_text8(window, gc_lowlight, startx+22+5+5+11, 19, "t".as_bytes());
-    Ok(())
 }
 
 pub fn drawclicky<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, gc_lowlight: u32) {
@@ -241,50 +228,65 @@ pub fn drawclicky<C: Connection>(xconnection: &C, window: u32, startx: i16, star
 	xconnection.image_text8(window, gc_lowlight, startx+22+5+5, starty + 19, "ick".as_bytes());
 }
 
-pub fn drawdepressedbumpyframe<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_highcheckers: u32) -> Result<(), Box<dyn Error>> {
-	drawbumpyframe(&xconnection, window, startx, starty, framewidth, frameheight, gc_lowlight, gc_highlight, 0, gc_highbackground)?;
+pub fn drawdepressedbumpyframe<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_highcheckers: u32, poly_lowlight: &mut Vec<Segment>) {
+	drawbumpyframe(&xconnection, window, startx, starty, framewidth, frameheight, gc_highlight, 0, gc_highbackground, poly_lowlight);
 	
 	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_lowbackground, &[
 		Point { x: startx + 1, y: starty + frameheight - 2 },
 		Point { x: 0, y: 3 - frameheight },
 		Point { x: framewidth - 3, y: 0 },
-	])?;
+	]);
 	
 	if gc_highcheckers > 0 {
 	
 		xconnection.poly_line(CoordMode::PREVIOUS, window, gc_highlight, &[
 			Point { x: startx + 2, y: 6 },
 			Point { x: framewidth - 4, y: 0 },
-		])?;
+		]);
 	
 	
-		xconnection.poly_fill_rectangle(window, gc_highcheckers, &[Rectangle { x: startx + 2, y: starty + 3, width: framewidth as u16 - 3, height: frameheight as u16 - 4}])?;
+		xconnection.poly_fill_rectangle(window, gc_highcheckers, &[Rectangle { x: startx + 2, y: starty + 3, width: framewidth as u16 - 3, height: frameheight as u16 - 4}]);
 	}
-	
-    Ok(())
+
 }
 
 
 
-pub fn drawbumpyframe<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32) -> Result<(), Box<dyn Error>> {
+pub fn drawbumpyframe<C: Connection>(xconnection: &C, window: u32, startx: i16, starty: i16, framewidth: i16, frameheight: i16, gc_highlight: u32, gc_highbackground: u32, gc_lowbackground: u32, poly_lowlight: &mut Vec<Segment>) -> Result<(), Box<dyn Error>> {
 	//Frame that dumps out.
-	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_lowlight, &[
-		Point { x: startx, y: starty + frameheight },
-		Point { x: framewidth, y: 0 },
-		Point { x: 0, y: -frameheight },
-	])?;
+	poly_lowlight.extend([Segment { x1: startx, y1: starty + frameheight, x2: startx + framewidth, y2: starty + frameheight }, Segment { x1: startx + framewidth, y1: starty + frameheight, x2: startx + framewidth, y2: starty },]);
+
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
 	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_highlight, &[
 		Point { x: startx, y: starty + frameheight - 1 },
 		Point { x: 0, y: 1 - frameheight },
 		Point { x: framewidth - 1, y: 0 },
-	])?;
+	]);
 	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_lowbackground, &[
 		Point { x: startx + 1, y: starty + frameheight - 1 },
 		Point { x: framewidth - 2, y: 0 },
 		Point { x: 0, y: 2-frameheight },
-	])?;
+	]);
 	if gc_highbackground > 0 {
-		xconnection.poly_fill_rectangle(window, gc_highbackground, &[Rectangle {x: startx + 1, y: starty + 1, width: (framewidth as u16) - 2, height: (frameheight as u16) - 2,}])?;
+		xconnection.poly_fill_rectangle(window, gc_highbackground, &[Rectangle {x: startx + 1, y: starty + 1, width: (framewidth as u16) - 2, height: (frameheight as u16) - 2,}]);
     }
 	Ok(())
 }
@@ -302,12 +304,12 @@ pub fn drawdepressedframe<C: Connection>(xconnection: &C, window: u32, startx: i
 		Point { x: startx, y: starty },
 		Point { x: 0, y: frameheight },
 		Point { x: -framewidth, y: 0 },
-	])?;
+	]);
 	xconnection.poly_line(CoordMode::PREVIOUS, window, gc_lowbackground, &[
 		Point { x: startx - 1, y: starty },
 		Point { x: -framewidth+1, y: 0 },
 		Point { x: 0, y: frameheight - 1 },
-	])?;
+	]);
     Ok(())
 }
 

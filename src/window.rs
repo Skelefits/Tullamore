@@ -62,13 +62,13 @@ pub fn createwmborder<C: Connection>(xconnection: &C, screen: &Screen, wm: &Wind
         let fy = (state.y - (TITLEBAR as i16 - BORDER as i16)).max(0).min(screen_height - fheight);
 
         let frame = xconnection.generate_id()?;
-        xconnection.create_window(COPY_DEPTH_FROM_PARENT, frame, screen.root, fx, fy, fwidth as u16, fheight as u16, 0, WindowClass::INPUT_OUTPUT, 0, &CreateWindowAux::new().background_pixel(COLOURS[HIGHBACKGROUND_COLOUR]).event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS | EventMask::POINTER_MOTION | EventMask::BUTTON_RELEASE))?;
-        xconnection.configure_window(target, &ConfigureWindowAux::new().border_width(0))?;
-        xconnection.reparent_window(target, frame, BORDER as i16, (BORDER + TITLEBAR) as i16)?;
-        xconnection.map_window(frame)?;
-        xconnection.map_window(target)?;
+        xconnection.create_window(COPY_DEPTH_FROM_PARENT, frame, screen.root, fx, fy, fwidth as u16, fheight as u16, 0, WindowClass::INPUT_OUTPUT, 0, &CreateWindowAux::new().background_pixel(COLOURS[HIGHBACKGROUND_COLOUR]).event_mask(EventMask::EXPOSURE | EventMask::BUTTON_PRESS | EventMask::POINTER_MOTION | EventMask::BUTTON_RELEASE));
+        xconnection.configure_window(target, &ConfigureWindowAux::new().border_width(0));
+        xconnection.reparent_window(target, frame, BORDER as i16, (BORDER + TITLEBAR) as i16);
+        xconnection.map_window(frame);
+        xconnection.map_window(target);
         updateborder(xconnection, frame, target, fwidth, fheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight);
-        xconnection.flush()?;
+        xconnection.flush();
         Ok(frame)
     } else {
         Err("Window not found in window manager".into())
@@ -120,8 +120,8 @@ pub fn updateborder<C: x11rb::connection::Connection>(xconnection: &C, frame: u3
 	
     drawtitlebar(xconnection, frame, width - TITLE_INSET, TITLEBAR as i16, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc, poly_lowlight);
 	
+	updategui(xconnection, frame, gc_lowlight, poly_lowlight);
 	
-	xconnection.poly_segment(frame, gc_lowlight, &poly_lowlight);
 	
 	
 	
@@ -129,61 +129,65 @@ pub fn updateborder<C: x11rb::connection::Connection>(xconnection: &C, frame: u3
 	drawtitletext(xconnection, frame, gc, target, TITLE_INSET, TITLEBAR as i16 - TEXT_Y_OFFSET);
 }
 
-pub fn drawpanelwindows<C: Connection>(xconnection: &C, window: u32, startx: i16, workingwidth: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_highcheckers: u32, wm: &WindowManager) -> Result<(), Box<dyn Error>> {
+pub fn updategui<C: x11rb::connection::Connection>(xconnection: &C, frame: u32, gc_lowlight: u32, poly_lowlight: &mut Vec<Segment>) {
+	xconnection.poly_segment(frame, gc_lowlight, &poly_lowlight);
+	poly_lowlight.clear();
+}
+
+pub fn drawpanelwindows<C: Connection>(xconnection: &C, window: u32, startx: i16, workingwidth: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_highcheckers: u32, wm: &WindowManager, poly_lowlight: &mut Vec<Segment>) {
     const WINDOW_TARGET_WIDTH: i16 = 160;
     const WINDOW_MIN_WIDTH: i16 = 30;
     const WINDOW_SPACING: i16 = 3;
     const ICON_WIDTH: u16 = 16;
     const ICON_HEIGHT: u16 = 16;
     let mut windows: Vec<(Window, String, Window)> = wm.windows.values().filter(|state| state.map == 2 || state.map == 3).map(|state| (state.frame, state.title.clone(), state.window)).collect();
-    if windows.is_empty() { return Ok(()); }
-    windows.sort_by_key(|(frame, _, _)| wm.windows.values().find(|state| state.frame == *frame).map(|state| state.order).unwrap_or(0));
-    let windowscount = windows.len() as i16;
-    let requiredwidth = (WINDOW_TARGET_WIDTH * windowscount) + (WINDOW_SPACING * (windowscount - 1));
-    let finalwidth = if requiredwidth > workingwidth { ((workingwidth - (WINDOW_SPACING * (windowscount - 1))) / windowscount).max(WINDOW_MIN_WIDTH) } else { WINDOW_TARGET_WIDTH };
-    let focused = wm.windows.values().find(|state| state.map == 2).map(|state| state.frame);
-    let mut offset = startx;
-    for (i, (frameid, title, clientid)) in windows.iter().enumerate() {
-        let max_chars = ((finalwidth - 20) / 6).max(1);
-        let display_title = if title.len() > max_chars as usize {
-            if max_chars > 3 { format!("{}...", &title[0..(max_chars - 3) as usize]) } else { title[0..max_chars as usize].to_string() }
-        } else {
-            title.clone()
-        };
-        if Some(*frameid) == focused {
-            drawdepressedbumpyframe(xconnection, window, offset, 4, finalwidth, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
-            drawpng(xconnection, window, "computer.png", offset + 4, 8, ICON_WIDTH, ICON_HEIGHT, COLOURS[HIGHBACKGROUND_COLOUR])?;
-            if !display_title.is_empty() { xconnection.image_text8(window, gc_lowlight, offset + 22, 20, display_title.as_bytes())?; }
-        } else {
-            drawbumpyframe(xconnection, window, offset, 4, finalwidth, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-            drawpng(xconnection, window, "computer.png", offset + 4, 7, ICON_WIDTH, ICON_HEIGHT, COLOURS[HIGHBACKGROUND_COLOUR])?;
-            if !display_title.is_empty() { xconnection.image_text8(window, gc_lowlight, offset + 22, 19, display_title.as_bytes())?; }
-        }
-        offset += finalwidth + WINDOW_SPACING;
-        if offset + finalwidth > startx + workingwidth { eprintln!("Uh-oh! We are out of space at Window {}!", i+1); break; }
-    }
-    xconnection.flush()?;
-    Ok(())
+    if windows.is_empty() {  } else {
+		windows.sort_by_key(|(frame, _, _)| wm.windows.values().find(|state| state.frame == *frame).map(|state| state.order).unwrap_or(0));
+		let windowscount = windows.len() as i16;
+		let requiredwidth = (WINDOW_TARGET_WIDTH * windowscount) + (WINDOW_SPACING * (windowscount - 1));
+		let finalwidth = if requiredwidth > workingwidth { ((workingwidth - (WINDOW_SPACING * (windowscount - 1))) / windowscount).max(WINDOW_MIN_WIDTH) } else { WINDOW_TARGET_WIDTH };
+		let focused = wm.windows.values().find(|state| state.map == 2).map(|state| state.frame);
+		let mut offset = startx;
+		for (i, (frameid, title, clientid)) in windows.iter().enumerate() {
+			let max_chars = ((finalwidth - 20) / 6).max(1);
+			let display_title = if title.len() > max_chars as usize {
+				if max_chars > 3 { format!("{}...", &title[0..(max_chars - 3) as usize]) } else { title[0..max_chars as usize].to_string() }
+			} else {
+				title.clone()
+			};
+			if Some(*frameid) == focused {
+				drawdepressedbumpyframe(xconnection, window, offset, 4, finalwidth, 21, gc_highlight, gc_highbackground, gc_lowbackground, gc_highcheckers, poly_lowlight);
+				drawpng(xconnection, window, "computer.png", offset + 4, 8, ICON_WIDTH, ICON_HEIGHT, COLOURS[HIGHBACKGROUND_COLOUR]);
+				if !display_title.is_empty() { xconnection.image_text8(window, gc_lowlight, offset + 22, 20, display_title.as_bytes()); }
+			} else {
+				drawbumpyframe(xconnection, window, offset, 4, finalwidth, 21, gc_highlight, gc_highbackground, gc_lowbackground, poly_lowlight);
+				drawpng(xconnection, window, "computer.png", offset + 4, 7, ICON_WIDTH, ICON_HEIGHT, COLOURS[HIGHBACKGROUND_COLOUR]);
+				if !display_title.is_empty() { xconnection.image_text8(window, gc_lowlight, offset + 22, 19, display_title.as_bytes()); }
+			}
+			offset += finalwidth + WINDOW_SPACING;
+			if offset + finalwidth > startx + workingwidth { eprintln!("Uh-oh! We are out of space at Window {}!", i+1); break; }
+		}
+		xconnection.flush();
+	}
 }
 
-pub fn drawwindowbuttons<C: Connection>(xconnection: &C, panel: Window, u8_panelitem: u8, str_title: &str, x: i16, width: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_highcheckers: u32) -> Result<(), Box<dyn Error>> {
+pub fn drawwindowbuttons<C: Connection>(xconnection: &C, panel: Window, u8_panelitem: u8, str_title: &str, x: i16, width: i16, gc_highlight: u32, gc_lowlight: u32, gc_highbackground: u32, gc_lowbackground: u32, gc_highcheckers: u32, poly_lowlight: &mut Vec<Segment>) {
 	println!("u8_panelitem {}", u8_panelitem);	
     if u8_panelitem == 43 {
-        drawdepressedbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+        drawdepressedbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_highbackground, gc_lowbackground, gc_highcheckers, poly_lowlight);
 		if width >= 20 {
-			drawpng(xconnection, panel, "computer.png", x + 4, 8, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-			xconnection.image_text8(panel, gc_lowlight, x + 24, 20, squishtext(str_title, width - 28, 6).as_bytes())?;
+			drawpng(xconnection, panel, "computer.png", x + 4, 8, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR]);
+			xconnection.image_text8(panel, gc_lowlight, x + 24, 20, squishtext(str_title, width - 28, 6).as_bytes());
 		}
     } else {
 		if u8_panelitem == 41 {
-			drawdepressedbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, 0)?;
+			drawdepressedbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_highbackground, gc_lowbackground, 0, poly_lowlight);
 		} else {
-			drawbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+			drawbumpyframe(xconnection, panel, x, 4, width, 21, gc_highlight, gc_highbackground, gc_lowbackground, poly_lowlight);
 		}
 		if width >= 20 {
-			drawpng(xconnection, panel, "computer.png", x + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR])?;
-			xconnection.image_text8(panel, gc_lowlight, x + 24, 19, squishtext(str_title, width - 28, 6).as_bytes())?;
+			drawpng(xconnection, panel, "computer.png", x + 4, 7, 16, 16, COLOURS[HIGHBACKGROUND_COLOUR]);
+			xconnection.image_text8(panel, gc_lowlight, x + 24, 19, squishtext(str_title, width - 28, 6).as_bytes());
 		}
     }
-    Ok(())
 }

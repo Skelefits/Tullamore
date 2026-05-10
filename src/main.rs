@@ -48,7 +48,7 @@ use trundle::drawbumpyframe;
 use trundle::drawdepressedbumpyframe;
 use trundle::drawdepressedframe;
 use trundle::drawclickbutton;
-use trundle::drawdepressedclickbutton;
+use trundle::drawclicky;
 use trundle::drawpng;
 use trundle::drawpngcover;
 use trundle::drawclock;
@@ -789,6 +789,8 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 
 	//Graphic polygons
 	let mut poly_lowlight: Vec<Segment> = Vec::new();
+	let mut poly_index: Vec<u8> = Vec::new(); //Where the windowid or colour changes in poly_lowlight.
+	let mut poly_windoworcolour: Vec<u32> = Vec::new(); //WindowID or colour (if under 10).
 
 
     //Show window.
@@ -1041,7 +1043,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 					if let Some((index, elementtype)) = checkelement(release.event_x, release.event_y, &panelindex, &panelcoordinates) {
 						if elementtype == 0 {
 							if system == 0 {
-								system = system::clicker::startprogram(&xconnection, &screen, panel, &clickmenuitems, &clickmenusize, &width, &height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight, &mut wm);
+								system = system::clicker::startprogram(&xconnection, &screen, panel, &clickmenuitems, &clickmenusize, &width, &height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm, &mut poly_lowlight, &mut poly_index, &mut poly_windoworcolour);
 							}
 							println!("Click Button Clicked");
 							//draw = 1;
@@ -1053,19 +1055,19 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 									if index == 1 {
 										let test = createwindow(&xconnection, &screen, 100, 100, 200, 100, b"test1", width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight)?;
+										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight, &mut poly_index, &mut poly_windoworcolour);
 									} else if index == 2 {
 										let test = createwindow(&xconnection, &screen, 100, 100, 300, 200, b"test2", width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight)?;
+										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight, &mut poly_index, &mut poly_windoworcolour);
 									} else if index == 3 {
 										let test = createwindow(&xconnection, &screen, 100, 100, 100, 100, b"test3", width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm)?;
 										insertpanelwindow(&mut panelindex, test, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
-										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight)?;
+										focuswindow(&mut wm, &xconnection, panel, test, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight, &mut poly_index, &mut poly_windoworcolour);
 									} else if index == 4 {
-										draw = programs::booker::startprogram(&xconnection, &screen, panel, width, height, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight, &mut wm);
+										draw = programs::booker::startprogram(&xconnection, &screen, panel, width, height, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm, &mut poly_lowlight, &mut poly_index, &mut poly_windoworcolour);
 									} else if index == 5 {
-										game = games::superbun::startprogram(&xconnection, &screen, panel, width, height, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight, &mut wm);
+										game = games::superbun::startprogram(&xconnection, &screen, panel, width, height, &mut panelindex, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut wm, &mut poly_lowlight, &mut poly_index, &mut poly_windoworcolour);
 									}
 									draw = 40; 
 
@@ -1081,7 +1083,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							windowactive = index as u8;
 							panelitems[index][0] = 43;
 							let client = panelwindows[index][0] as Window;
-							if let Some(state) = wm.getwindow(&client) { focuswindow(&mut wm, &xconnection, panel, client, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight)?; draw = elementtype; }
+							if let Some(state) = wm.getwindow(&client) { focuswindow(&mut wm, &xconnection, panel, client, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight, &mut poly_index, &mut poly_windoworcolour); draw = elementtype; }
 						}
 					}
 				} else {
@@ -1112,7 +1114,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 											
 											println!("windowactive {} windowlast {}", windowactive, windowlast);
 											
-											swapwindow(&mut wm, &xconnection, panel, &panelwindows, &mut panelitems, &mut windowactive, &mut windowlast, index, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight)?;
+											swapwindow(&mut wm, &xconnection, panel, &panelwindows, &mut panelitems, &mut windowactive, &mut windowlast, index, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight, &mut poly_index, &mut poly_windoworcolour);
 											
 										}
 										
@@ -1143,7 +1145,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 										if panelwindows[i][0] == client {
 											println!("found it {}", client);
 											//index = i;
-											swapwindow(&mut wm, &xconnection, panel, &panelwindows, &mut panelitems, &mut windowactive, &mut windowlast, i, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight)?;
+											swapwindow(&mut wm, &xconnection, panel, &panelwindows, &mut panelitems, &mut windowactive, &mut windowlast, i, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, &mut poly_lowlight, &mut poly_index, &mut poly_windoworcolour);
 											//Remove window from the panel.
 											//FIX, TODO, FIXME, this part isn't removing the correct index?
 											removepanelwindow(&mut panelindex, client, &mut panelitems, &mut panelcoordinates, &mut panelwindows, &mut panelicons);
@@ -1359,15 +1361,17 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 				if draw == 0 {
 					//Change bottom left Click button to ready.
 					//Endprogram function deleted the Clicker menu and redraws the Click button to unpressed.
-					system::clicker::endprogram(&mut wm, &xconnection, panel, system, panelcoordinates, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+					system::clicker::endprogram(&mut wm, &xconnection, panel, system, panelcoordinates, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, &mut poly_lowlight);
 					system = 0;
 				}
 				if draw == 1 {
 					//workinghere
 					//drawclickbutton(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
 					//Click button is changed to pressed.
-					drawdepressedclickbutton(&xconnection, panel, panelcoordinates[0][0], 4, panelcoordinates[0][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
-
+					
+					//FIXME: Check previous revision. 
+						//drawdepressedclickbutton(&xconnection, window, startx, starty, framewidth, frameheight, gc_highlight, gc_highbackground, gc_lowbackground, gc_highbackground, poly_lowlight);
+						//drawclicky(&xconnection, window, startx + 1, 1, gc_lowlight);
 
 					//drawdepressedbumpyframe(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, 0)?;
 
@@ -1426,7 +1430,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						}
 						41 => {
 							//startx: i16, starty: i16, framewidth: i16, frameheight: i1
-							drawdepressedbumpyframe(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, 0)?;
+							drawdepressedbumpyframe(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_highbackground, gc_lowbackground, 0, &mut poly_lowlight);
 						}
 						43 => {
 							//Engaged
@@ -1438,14 +1442,14 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 							panelitems[i][0] = 40;
 							
 							if let Some(state) = wm.getwindow(&(panelwindows[i][0] as Window)) {
-								drawwindowbuttons(&xconnection, panel, panelitems[i][0], &state.title, panelcoordinates[i][0], panelcoordinates[i][1], gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+								drawwindowbuttons(&xconnection, panel, panelitems[i][0], &state.title, panelcoordinates[i][0], panelcoordinates[i][1], gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers, &mut poly_lowlight);
 							} else {
 								println!("ERROR 44: No window state for panel window {} at index {}.",	panelwindows[i][0], i);
 							}
 							
 							
 							
-							//drawbumpyframe(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, 0, gc_lowbackground)?;
+
 						}
 						_ => {
 							
@@ -1484,7 +1488,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						if panelitems[i][0] >= 40 && panelitems[i][0] < 45 {
 							//startx: i16, starty: i16, framewidth: i16, frameheight: i1
 							if let Some(state) = wm.getwindow(&(panelwindows[i][0] as Window)) {
-								drawwindowbuttons(&xconnection, panel, panelitems[i][0], &state.title, panelcoordinates[i][0], panelcoordinates[i][1], gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+								drawwindowbuttons(&xconnection, panel, panelitems[i][0], &state.title, panelcoordinates[i][0], panelcoordinates[i][1], gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers, &mut poly_lowlight);
 							} else {
 								println!("ERROR 40: No window state for panel window {} at index {}.",	panelwindows[i][0], i);
 							}
@@ -1514,7 +1518,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						}
 						1 => {
 							//Start Button
-							drawclickbutton(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground)?;
+							drawclickbutton(&xconnection, panel, panelcoordinates[i][0], 4, panelcoordinates[i][1], 21, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, &mut poly_lowlight);
 							//println!("Start Button X {}", panelcoordinates[i][0]);
 						}
 						30 => {
@@ -1525,7 +1529,7 @@ fn desktop() -> Result<(), Box<dyn Error>> {
 						40 => {
 							//startx: i16, starty: i16, framewidth: i16, frameheight: i1
 							
-							drawwindowbuttons(&xconnection, panel, panelitems[i][0], &wm.getwindow(&(panelwindows[i][0] as Window)).unwrap().title, panelcoordinates[i][0], panelcoordinates[i][1], gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers)?;
+							drawwindowbuttons(&xconnection, panel, panelitems[i][0], &wm.getwindow(&(panelwindows[i][0] as Window)).unwrap().title, panelcoordinates[i][0], panelcoordinates[i][1], gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_highcheckers, &mut poly_lowlight);
 							
 
 							
@@ -1702,7 +1706,7 @@ fn updateelement(target: usize, elementtype: u8, new: u8, panelitems: &mut [[u8;
     None
 }
 
-fn focuswindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Window, client: Window, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, poly_lowlight: &mut Vec<Segment>) -> Result<(), Box<dyn Error>> {
+fn focuswindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Window, client: Window, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, poly_lowlight: &mut Vec<Segment>, poly_index: &mut Vec<u8>, poly_windoworcolour: &mut Vec<u32>) -> Result<(), Box<dyn Error>> {
     if let Some(state) = wm.getwindow(&client) {
         let frame = state.frame;
         if state.map == 0 { xconnection.map_window(client)?; xconnection.map_window(frame)?; }
@@ -1714,7 +1718,12 @@ fn focuswindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Wi
 		}).collect();
         for (frame, client, width, height) in redraw {
 			if frame != panel {
+				let somethingtodraw = poly_lowlight.len();
 				updateborder(&xconnection, frame, client, width, height, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight);
+				if poly_lowlight.len() != somethingtodraw {
+					poly_index.push(somethingtodraw as u8);
+					poly_windoworcolour.push(frame);
+				}
 			}
 		}
     }
@@ -1759,7 +1768,7 @@ fn resetpanelelement(draw: &mut u8, elementreset: &mut u8, panelitems: &mut [[u8
     }
 }
 
-fn swapwindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Window, panelwindows: &[[u32; 1]; 128], panelitems: &mut [[u8; 1]; 128], windowactive: &mut u8, windowlast: &mut u8, index: usize, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, poly_lowlight: &mut Vec<Segment>) -> Result<(), Box<dyn Error>> {
+fn swapwindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Window, panelwindows: &[[u32; 1]; 128], panelitems: &mut [[u8; 1]; 128], windowactive: &mut u8, windowlast: &mut u8, index: usize, gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, poly_lowlight: &mut Vec<Segment>, poly_index: &mut Vec<u8>, poly_windoworcolour: &mut Vec<u32>) {
     if *windowlast == 255 || *windowlast == *windowactive {
         let loopindex = index as u8;
         for i in 1..=5 {
@@ -1770,7 +1779,7 @@ fn swapwindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Win
                         if window.map == 3 {
                             window.map = 2;
                             panelitems[checkindex as usize][0] = 43;
-                            focuswindow(wm, xconnection, panel, panelwindows[checkindex as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight)?;
+                            focuswindow(wm, xconnection, panel, panelwindows[checkindex as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight, poly_index, poly_windoworcolour);
                             break;
                         }
                     }
@@ -1783,7 +1792,7 @@ fn swapwindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Win
                     if window.map == 3 {
                         window.map = 2;
                         panelitems[checkindex as usize][0] = 43;
-                        focuswindow(wm, xconnection, panel, panelwindows[checkindex as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight)?;
+                        focuswindow(wm, xconnection, panel, panelwindows[checkindex as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight, poly_index, poly_windoworcolour);
                         break;
                     }
                 }
@@ -1793,9 +1802,8 @@ fn swapwindow<C: Connection>(wm: &mut WindowManager, xconnection: &C, panel: Win
         *windowactive = *windowlast;
         panelitems[*windowactive as usize][0] = 43;
         *windowlast = 255;
-        focuswindow(wm, xconnection, panel, panelwindows[*windowactive as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight)?;
+        focuswindow(wm, xconnection, panel, panelwindows[*windowactive as usize][0] as Window, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight, poly_index, poly_windoworcolour);
     }
-    Ok(())
 }
 
 fn removepanelwindow(panelindex: &mut [u8; 6], window: u32, panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32]) {

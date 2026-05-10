@@ -100,7 +100,7 @@ impl GameState {
     }
 }
 
-pub fn startprogram(xconnection: &impl Connection, screen: &Screen, panel: Window, width: i16, height: i16, panelindex: &mut [u8; 6], panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32], gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, poly_lowlight: &mut Vec<Segment>, wm: &mut WindowManager) -> Window { 
+pub fn startprogram(xconnection: &impl Connection, screen: &Screen, panel: Window, width: i16, height: i16, panelindex: &mut [u8; 6], panelitems: &mut [[u8; 1]; 128], panelcoordinates: &mut [[i16; 2]; 128], panelwindows: &mut [[u32; 1]; 128], panelicons: &mut [[String; 4]; 32], gc_highlight: Gcontext, gc_lowlight: Gcontext, gc_highbackground: Gcontext, gc_lowbackground: Gcontext, gc_titlebar: Gcontext, gc_titlebartext: Gcontext, wm: &mut WindowManager, poly_lowlight: &mut Vec<Segment>, poly_index: &mut Vec<u8>, poly_windoworcolour: &mut Vec<u32>) -> Window { 
 	let inputwidth = 450;
 	let inputheight = 400;
 
@@ -125,7 +125,7 @@ pub fn startprogram(xconnection: &impl Connection, screen: &Screen, panel: Windo
 		Ok(superbun) => {
 			insertpanelwindow(panelindex, superbun,  panelitems, panelcoordinates, panelwindows, panelicons);
 			basicscreen(xconnection, superbun, gamewidth, gameheight, buttonwidth, buttonheight, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground);
-			match focuswindow(wm, xconnection, panel, superbun, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight) {
+			match focuswindow(wm, xconnection, panel, superbun, gc_highlight, gc_lowlight, gc_highbackground, gc_lowbackground, gc_titlebar, gc_titlebartext, poly_lowlight, poly_index, poly_windoworcolour) {
 				Ok(_) => superbun,
 				Err(_) => 0,
 			}
